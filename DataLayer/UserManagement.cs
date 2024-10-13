@@ -111,9 +111,16 @@ namespace MonsterTradingCardGame.DataLayer
                     int rowsAffected = command.ExecuteNonQuery();//returns the number of rows affected by the query
                     return rowsAffected > 0;//returns true if atlease 1 row has been affected (a user has been insereted)
                 }
-                catch (Exception ex)//error mssg
+                catch (PostgresException ex) when (ex.SqlState == "23505") //Catch duplicate key error
                 {
-                    Console.WriteLine($"Problem making new user : {ex.Message}");
+                    //Logs the specific error
+                    Console.WriteLine($"Duplicate username error: {ex.Message}");
+                    return false;//returns false if user already exists
+                }
+                catch (Exception ex)
+                {
+                    //Logs any other exception
+                    Console.WriteLine($"Problem making new user: {ex.Message}");
                     return false;
                 }
 
@@ -185,12 +192,12 @@ namespace MonsterTradingCardGame.DataLayer
             }
             else
             {
+                string errorResponse = "{\"error\": \"Username already exists.\"}";
                 writer.WriteLine("HTTP/1.1 409 Conflict");
                 writer.WriteLine("Content-Type: application/json");
-                string errorBody = "{\"error\": \"Registration failed: Username may already exist.\"}";
-                writer.WriteLine($"Content-Length: {errorBody.Length}");
+                writer.WriteLine($"Content-Length: {errorResponse.Length}");
                 writer.WriteLine();
-                writer.WriteLine(errorBody);
+                writer.WriteLine(errorResponse);
             }
         }
 
