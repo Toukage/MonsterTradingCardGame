@@ -131,9 +131,12 @@ namespace MonsterTradingCardGame.DataLayer
             bool Valid = GetUser(username, password);//checks if user exists
             if (!Valid)//if the user doesnt exist
             {
+                string errorResponse = "{\"error\": \"Wrong Username or Password.\"}";
                 writer.WriteLine("HTTP/1.1 401 Unauthorized");
+                writer.WriteLine("Content-Type: application/json");
+                writer.WriteLine($"Content-Length: {errorResponse.Length}");
                 writer.WriteLine();
-                writer.WriteLine("Wrong Username or Password.");
+                writer.WriteLine(errorResponse);
                 return;
             }
 
@@ -143,16 +146,22 @@ namespace MonsterTradingCardGame.DataLayer
             if (userId != null)
             {
                 string token = tokenManager.CheckToken(userId.Value, username, writer);//checks if the user has token, if not it creates a new one
+                string successResponse = $"{{\"message\": \"Login successful!\", \"token\": \"{token}\"}}";
+
                 writer.WriteLine("HTTP/1.1 200 OK");
-                writer.WriteLine("Content-Type: text/plain");
+                writer.WriteLine("Content-Type: application/json");
+                writer.WriteLine($"Content-Length: {successResponse.Length}");
                 writer.WriteLine();
-                writer.WriteLine("Login successful!");
+                writer.WriteLine(successResponse);
             }
             else
             {
+                string errorResponse = "{\"error\": \"Error retrieving user ID.\"}";
                 writer.WriteLine("HTTP/1.1 500 Internal Server Error");
+                writer.WriteLine("Content-Type: application/json");
+                writer.WriteLine($"Content-Length: {errorResponse.Length}");
                 writer.WriteLine();
-                writer.WriteLine("Error retrieving user ID.");
+                writer.WriteLine(errorResponse);
             }
         }
 
@@ -167,16 +176,21 @@ namespace MonsterTradingCardGame.DataLayer
             bool Valid = InsertUser(username, password);//inserts new user into database
             if (Valid)
             {
-                writer.WriteLine("HTTP/1.1 200 OK");
-                writer.WriteLine("Content-Type: text/plain");
+                string responseBody = "{\"message\": \"User created successfully\"}";
+                writer.WriteLine("HTTP/1.1 201 Created");
+                writer.WriteLine("Content-Type: application/json");
+                writer.WriteLine($"Content-Length: {responseBody.Length}");
                 writer.WriteLine();
-                writer.WriteLine("Registered successfully!");
+                writer.WriteLine(responseBody);
             }
             else
             {
-                writer.WriteLine("HTTP/1.1 401 Unauthorized");
+                writer.WriteLine("HTTP/1.1 409 Conflict");
+                writer.WriteLine("Content-Type: application/json");
+                string errorBody = "{\"error\": \"Registration failed: Username may already exist.\"}";
+                writer.WriteLine($"Content-Length: {errorBody.Length}");
                 writer.WriteLine();
-                writer.WriteLine("Registration failed: Username may already exist.");
+                writer.WriteLine(errorBody);
             }
         }
 
