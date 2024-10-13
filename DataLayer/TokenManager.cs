@@ -70,19 +70,12 @@ namespace MonsterTradingCardGame.DataLayer
 
             if (token != null)//if the user has a token it returns said token
             {
-                writer.WriteLine("HTTP/1.1 200 OK");
-                writer.WriteLine();
-                writer.WriteLine($"Existing token for {username}: {token}");
                 return token;
             }
             else //if user doesnt have a token , it generates one and returns the new token
             {
                 token = GenerateToken(username);//methode to generate token
                 SaveToken(userId, token);//methode to save token to database
-
-                writer.WriteLine("HTTP/1.1 200 OK");
-                writer.WriteLine();
-                writer.WriteLine($"New token generated for {username}: {token}");
                 return token;
             }
         }
