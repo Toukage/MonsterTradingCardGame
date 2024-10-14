@@ -18,9 +18,9 @@ namespace MonsterTradingCardGame.DataLayer
         private readonly Parser _parser;
 
         public UserManagement(Parser parser)
-            {
-                _parser = parser;
-            }
+        {
+            _parser = parser;
+        }
 
         //----------------------GET--DATA----------------------
 
@@ -32,26 +32,30 @@ namespace MonsterTradingCardGame.DataLayer
             using (var command = new NpgsqlCommand("SELECT * FROM Users WHERE username=@username AND password=@password", connection))//sql query for getting the user with the same credentials
             {
                 Console.WriteLine("** inside get user database injection **");
-                
 
-                command.Parameters.AddWithValue("@username", username);//replaces the username place holder with the username
-                command.Parameters.AddWithValue("@password", password);//replaces the password place holder with the password
 
-                using (var reader = command.ExecuteReader())//reads the entire result, doesnt save it 
+                command.Parameters.AddWithValue("@username", username);//replaces the username/password place holder with the username
+                command.Parameters.AddWithValue("@password", password);
+                using (var reader = command.ExecuteReader())//reads and executes result
                 {
-                    return reader.Read();
+                    
+                    if (reader.Read())
+                    {
+                        return true;
+                    }
                 }
             }
+            return false;
         }
 
         public int? GetUserId(string username)//gets user id using username
-        {
-            using (var connection = Database.Database.Connection())//opens new connection
+            {
+            using (var connection = Database.Database.Connection())//connects to db
             using (var command = new NpgsqlCommand("SELECT id FROM Users WHERE username = @username;", connection))//Sql querry to get the id from the user with the username
             {
                 command.Parameters.AddWithValue("@username", username);//replaces the username place holder with the username
 
-                using (var reader = command.ExecuteReader())//reads the entire result
+                using (var reader = command.ExecuteReader())//reads the result and executes the query
                 {
                     if (reader.Read())
                     {
@@ -60,144 +64,119 @@ namespace MonsterTradingCardGame.DataLayer
                 }
             }
 
-            return null; // Return null if the user doesn't exist
+            return null;//returns null if the user doesn't exist
         }
 
         public Dictionary<string, Dictionary<string, object>> GetUserCards(int userId)//gets all owned cards for a user
         {
             Console.WriteLine("** inside get user cards **");
 
-            var userCards = new Dictionary<string, Dictionary<string, object>>();//initialize dictionary to hold the card details
+            Dictionary<string, Dictionary<string, object>> userCards = new Dictionary<string, Dictionary<string, object>>();//initialize dictionary to hold the card details
 
-            using (var connection = Database.Database.Connection())//opens new connection
+            using (var connection = Database.Database.Connection())//connects to db
             using (var command = new NpgsqlCommand("SELECT card_id, name, card_type, damage FROM Cards WHERE user_id=@userId", connection))//sql query that gets all cards info from userid
             {
+                Console.WriteLine("** inside get user cards sql query **");//debug
+
                 command.Parameters.AddWithValue("@userId", userId);//replaces the userid place holder with the users id
 
                 using (var reader = command.ExecuteReader())//reads the results
                 {
-                    while (reader.Read())//as long as there are cards beind read, they r also being saved
+                    while (reader.Read())//as long as there are cardsit reads and saves them all
                     {
-                        string cardId = reader.GetInt32(reader.GetOrdinal("card_id")).ToString();//changes cards id to string to be saved in dictionary correctly
-                        string cardName = reader.GetString(reader.GetOrdinal("name"));//gets card name
-                        string cardType = reader.GetString(reader.GetOrdinal("card_type"));//get card type
-                        int damage = reader.GetInt32(reader.GetOrdinal("damage"));//get card damage
+                        string cardId = reader.GetInt32(reader.GetOrdinal("card_id")).ToString();//converts id to string to be saved in dictionary
+                        string cardName = reader.GetString(reader.GetOrdinal("name"));//gets name
+                        string cardType = reader.GetString(reader.GetOrdinal("card_type"));//gets type
+                        int damage = reader.GetInt32(reader.GetOrdinal("damage"));//gets dmg
 
-                        userCards[cardId] = new Dictionary<string, object>//new dicitionary to store card details
+                        Dictionary<string, object> cardDetails = new Dictionary<string, object>//new dicitionary to store card details
                         {
                             { "card_name", cardName },
                             { "card_type", cardType },
                             { "damage", damage }
                         };
-                    }                  
+
+                        userCards.Add(cardId, cardDetails);
+                    }
                 }
             }
             return userCards;
         }
-        
+
 
 
         //----------------------WRITE--DATA----------------------
-        public bool InsertUser(string username, string password)//creates a new user in database
+        public bool InsertUser(string username, string password, StreamWriter writer)//creates a new user in database
         {
 
-            using (var connection = Database.Database.Connection())//opens new connection
+            using (var connection = Database.Database.Connection())//connects to db
             using (var command = new NpgsqlCommand("INSERT INTO Users (username, password) VALUES (@username, @password)", connection))//sql query to insert new user with given credentials
             {
-                command.Parameters.AddWithValue("@username", username);//replaces the username place holder with the username
-                command.Parameters.AddWithValue("@password", password);//replaces the password place holder with the password
+                command.Parameters.AddWithValue("@username", username);
+                command.Parameters.AddWithValue("@password", password);
                 try
                 {
-                    int rowsAffected = command.ExecuteNonQuery();//returns the number of rows affected by the query
-                    return rowsAffected > 0;//returns true if atlease 1 row has been affected (a user has been insereted)
+                    int rowsAffected = command.ExecuteNonQuery();//returns the number of rows that changed
+                    return rowsAffected > 0;//if at least one was changed then true
                 }
-                catch (PostgresException ex) when (ex.SqlState == "23505") //Catch duplicate key error
+                catch (PostgresException ex) when (ex.SqlState == "23505")//409 status code
                 {
-                    //Logs the specific error
-                    Console.WriteLine($"Duplicate username error: {ex.Message}");
-                    return false;//returns false if user already exists
+                    writer.WriteLine("HTTP/1.1 409 Conflict");
+                    writer.WriteLine("Content-Type: text/plain");
+                    writer.WriteLine();
+                    writer.WriteLine("User already exists");
+                    return false;
                 }
                 catch (Exception ex)
                 {
-                    //Logs any other exception
-                    Console.WriteLine($"Problem making new user: {ex.Message}");
+                    Console.WriteLine($"Problem making new user : {ex.Message}");
                     return false;
                 }
 
             }
+
+            return false;
         }
 
+
         //----------------------REGISTRATION--UND--LOGIN----------------------(move to business layer)
-        public void Login(string body, string headers, StreamWriter writer)
+        public void Login(string body, string headers, StreamWriter writer)//login handler
         {
-            Console.WriteLine("** Handling POST /sessions for login **");
-            
+            Console.WriteLine("** inside login function **");
 
             var (username, password) = _parser.UserDataParse(body, writer);//gets the username and password from the body
 
             bool Valid = GetUser(username, password);//checks if user exists
-            if (!Valid)//if the user doesnt exist
+            if (Valid)//if yes check tokens and validate
             {
-                string errorResponse = "{\"error\": \"Wrong Username or Password.\"}";
+                int? userId = GetUserId(username);
+                TokenManager tokenManager = new TokenManager();
+                string token = tokenManager.CheckToken(userId.Value, username, writer);
+            }
+            else // 401 status code
+            {
                 writer.WriteLine("HTTP/1.1 401 Unauthorized");
-                writer.WriteLine("Content-Type: application/json");
-                writer.WriteLine($"Content-Length: {errorResponse.Length}");
                 writer.WriteLine();
-                writer.WriteLine(errorResponse);
-                return;
+                writer.WriteLine("Login Failed");
             }
 
-            int? userId = GetUserId(username);//gets the user id from the username
-            TokenManager tokenManager = new TokenManager();//initializes tokenmanager so i can use it later on
-
-            if (userId != null)
-            {
-                string token = tokenManager.CheckToken(userId.Value, username, writer);//checks if the user has token, if not it creates a new one
-                string successResponse = $"{{\"message\": \"Login successful!\", \"token\": \"{token}\"}}";
-
-                writer.WriteLine("HTTP/1.1 200 OK");
-                writer.WriteLine("Content-Type: application/json");
-                writer.WriteLine($"Content-Length: {successResponse.Length}");
-                writer.WriteLine();
-                writer.WriteLine(successResponse);
-            }
-            else
-            {
-                string errorResponse = "{\"error\": \"Error retrieving user ID.\"}";
-                writer.WriteLine("HTTP/1.1 500 Internal Server Error");
-                writer.WriteLine("Content-Type: application/json");
-                writer.WriteLine($"Content-Length: {errorResponse.Length}");
-                writer.WriteLine();
-                writer.WriteLine(errorResponse);
-            }
         }
 
-        public void Register(string body, StreamWriter writer)//handels registration
+        public void Register(string body, StreamWriter writer)//register Handler
         {
-            Console.WriteLine("** Handling POST /users for registration **");
-           
+            Console.WriteLine("** inside register **");//debug
+
             var (username, password) = _parser.UserDataParse(body, writer);//gets the username and password from the body
 
-            Console.WriteLine($"** Registering new user: {username}  **");
+            Console.WriteLine($"** the credentioals inside the registr function name : {username}, pass : {password}  **");//debug
 
-            bool Valid = InsertUser(username, password);//inserts new user into database
+            bool Valid = InsertUser(username, password, writer);//adds user to db
             if (Valid)
             {
-                string responseBody = "{\"message\": \"User created successfully\"}";
-                writer.WriteLine("HTTP/1.1 201 Created");
-                writer.WriteLine("Content-Type: application/json");
-                writer.WriteLine($"Content-Length: {responseBody.Length}");
+                Console.WriteLine("** isnide valid if statement for register **");//debug
+
+                writer.WriteLine("HTTP/1.1 201 Created"); // 201 status code
                 writer.WriteLine();
-                writer.WriteLine(responseBody);
-            }
-            else
-            {
-                string errorResponse = "{\"error\": \"Username already exists.\"}";
-                writer.WriteLine("HTTP/1.1 409 Conflict");
-                writer.WriteLine("Content-Type: application/json");
-                writer.WriteLine($"Content-Length: {errorResponse.Length}");
-                writer.WriteLine();
-                writer.WriteLine(errorResponse);
             }
         }
 
@@ -206,11 +185,11 @@ namespace MonsterTradingCardGame.DataLayer
 
         public void GetCards(string body, string headers, StreamWriter writer)//gets users cards and displays them
         {
-            Console.WriteLine("** handling GET /cards **");
+            Console.WriteLine("** inside GetCards **");
 
             string? token = _parser.GetToken(headers, writer);//gets the token out of the header
 
-            if(token == null)
+            if (token == null)//401 status code
             {
                 writer.WriteLine("HTTP/1.1 401 Unauthorized");
                 writer.WriteLine();
@@ -219,20 +198,21 @@ namespace MonsterTradingCardGame.DataLayer
             }
 
             TokenManager tokenManager = new TokenManager();
-            int? userId = tokenManager.ValidateToken(token);//validates token and returns userid
+            int? userId = tokenManager.ValidateToken(token);//checks if token is valid
 
-            if(userId != null)
+            if (userId != null)
             {
-                Dictionary<string, Dictionary<string, object>> userCards = GetUserCards(userId.Value);//gets cards from Getusercards using userid
+                Dictionary<string, Dictionary<string, object>> userCards = GetUserCards(userId.Value);
 
-                if (userCards.Count > 0)//if the user has any cards they get displayed
+                if (userCards.Count > 0)//if user has cards , send them back
                 {
-                    writer.WriteLine("HTTP/1.1 200 OK");
+                    Console.WriteLine("** isnide valid if statement for Cards **"); //debug
+                    writer.WriteLine("HTTP/1.1 200 OK");// 200 status code
                     writer.WriteLine("Content-Type: application/json");
                     writer.WriteLine();
                     writer.WriteLine("Here are your Cards!");
 
-                    foreach (var card in userCards)//iterates trough every card oject and displays it 
+                    foreach (var card in userCards)//displays cards
                     {
                         string cardId = card.Key;
                         var cardDetails = card.Value;
@@ -246,20 +226,12 @@ namespace MonsterTradingCardGame.DataLayer
                 }
                 else
                 {
-                    writer.WriteLine("HTTP/1.1 404 Not Found");
+                    Console.WriteLine("** inside else statement for valid in Cards **"); //debug
+                    writer.WriteLine("HTTP/1.1 404 Not Found"); // 404 status code
                     writer.WriteLine();
                     writer.WriteLine("No cards found for user.");
                 }
-
             }
-            else
-            {
-                writer.WriteLine("HTTP/1.1 401 Unauthorized");
-                writer.WriteLine();
-                writer.WriteLine("Invalid or expired token.");
-            }
-            
-            
         }
         public void GetStack(StreamWriter writer)//get user stack
         {

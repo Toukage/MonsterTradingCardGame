@@ -26,9 +26,9 @@ namespace MonsterTradingCardGame.Routing
 
         public void RequestParseRouter(string requestString, StreamWriter writer)
         {
-           _parser.RequestParse(requestString, writer);//sends the request to the parser to get some legible 
+            _parser.RequestParse(requestString, writer);//sends the request to the parser to get some legible 
         }
-        
+
 
         //----------Router-Request-Methode----------
         public void MethodRouter(string method, string path, string headers, string body, StreamWriter writer)
@@ -91,7 +91,7 @@ namespace MonsterTradingCardGame.Routing
                 case "/cards"://path for accessing cards
                     _management.GetCards(body, headers, writer);
                     string responseBody = "GET request received for /cards.";
-                    Console.WriteLine("Handling GET /cards"); 
+                    Console.WriteLine("Handling GET /cards");
                     break;
                 default:
                     NotFound(writer);
