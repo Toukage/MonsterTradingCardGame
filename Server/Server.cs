@@ -16,12 +16,12 @@ namespace MonsterTradingCardGame.Server
     public class Server
     {
         private readonly TcpListener _listener;
-        private bool _isRunning = true; //flag for running the server or closing it
+        private bool _isRunning = true;//flag for running the server or closing it
         private readonly Router _router;
 
         public Server(string address, int port = 10001, Router router = null)
         {
-            _listener = new TcpListener(IPAddress.Parse(address), port);// makes the TcpListener with specific adress and port
+            _listener = new TcpListener(IPAddress.Parse(address), port);//makes the TcpListener with specific adress and port
             _router = router ?? new Router();//use existing router or make a new one
         }
 
@@ -47,14 +47,13 @@ namespace MonsterTradingCardGame.Server
                         break;
                     }
                 }
-
             }
             catch (Exception ex)//exception for when server cant start
             {
                 Console.WriteLine($"Error starting server: {ex.Message}");
             }
         }
-           
+
 
         private async Task ServerLoop()
         {
@@ -99,7 +98,7 @@ namespace MonsterTradingCardGame.Server
 
                 writer.Flush();//makes sure the writer is sent
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error handling request: {ex.Message}");
             }
