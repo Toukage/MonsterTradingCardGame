@@ -64,7 +64,7 @@ namespace MonsterTradingCardGame.Routing
                 i++;//counts lines
             }
 
-            Console.WriteLine($"Received headers: {string.Join(", ", headers)}");
+            Console.WriteLine($"Received headers: {string.Join(", ", headers)}");//STRING BUILDER
 
             //--------Body--Handling--------
             Console.WriteLine("** inside body handling **");
@@ -110,6 +110,7 @@ namespace MonsterTradingCardGame.Routing
             return (username, password);//sends back parsed data
         }
 
+        //----------------------HEADER--PARSERS----------------------
         public string? GetToken(string headers, StreamWriter writer)//gets token from header
         {
             string[] headerLines = headers.Split("\r\n");//splits header by lines (again)
