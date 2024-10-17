@@ -22,7 +22,7 @@ namespace MonsterTradingCardGame.DataLayer
             _parser = parser;
         }
 
-        //----------------------GET--DATA----------------------
+        //----------------------GET--USER--DATA----------------------
 
         public bool GetUser(string username, string password)//looks for user in database
         {
@@ -67,6 +67,7 @@ namespace MonsterTradingCardGame.DataLayer
             return null;//returns null if the user doesn't exist
         }
 
+        //----------------------GET--CARD--DATA----------------------(move to business layer)
         public Dictionary<string, Dictionary<string, object>> GetUserCards(int userId)//gets all owned cards for a user
         {
             Console.WriteLine("** inside get user cards **");
