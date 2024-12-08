@@ -18,6 +18,7 @@ namespace MonsterTradingCardGame.Server
         private readonly TcpListener _listener;
         private bool _isRunning = true;//flag for running the server or closing it
         private readonly Router _router;
+        private readonly object _routerLock = new object();
 
         public Server(string address, int port = 10001, Router router = null)
         {
@@ -53,48 +54,63 @@ namespace MonsterTradingCardGame.Server
                 Console.WriteLine($"Error starting server: {ex.Message}");
             }
         }
-
+        SemaphoreSlim connectionLimit = new SemaphoreSlim(100); // Max 100 connections
 
         private async Task ServerLoop()
         {
             while (_isRunning)//loop to accept and handle incoming con
             {
+                await connectionLimit.WaitAsync();
                 try
                 {
                     using TcpClient client = await _listener.AcceptTcpClientAsync();//waits for client , then creats TcpListener obj
                     Console.WriteLine("-> Client connected. <-");
-                    _ = HandleRequest(client);//Fire and forget, handels the request async
+                    await HandleRequest(client);//Fire and forget, handels the request async
                 }
                 catch (Exception ex)//exception for the loop
                 {
                     Console.WriteLine($"Error in ServerLoop: {ex.Message}");
                 }
+                finally
+                {
+                    connectionLimit.Release();
+                }
+                
             }
         }
 
-        public async Task HandleRequest(TcpClient client)// processes the request
+        public async Task HandleRequest(TcpClient client)//processes the request
         {
             try
             {
-                NetworkStream stream = client.GetStream();// get the stream with all the data
-                byte[] buffer = new byte[1024];//creats byte array because stream is in byte
-                int length = await stream.ReadAsync(buffer, 0, buffer.Length);//makes serverloop wait until ReadAsync is done, reads data async, and gives the length of the message (use full for knowing if it was empty)
-                string requestString = Encoding.UTF8.GetString(buffer, 0, length);//coverts byte to string so we can parse the HTTP req
+                NetworkStream stream = client.GetStream();
+                byte[] buffer = new byte[8192];//creats byte array because stream is in byte
+                int length;
+                StringBuilder requestBuilder = new StringBuilder();
 
-                if (length == 0)//check foor empty req
+                //reads data in chunks for handling larger requests
+                while ((length = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    requestBuilder.Append(Encoding.UTF8.GetString(buffer, 0, length));
+
+                    //break when end of request (e.g., HTTP headers + body)
+                    if (!stream.DataAvailable) break;
+                }
+
+                string requestString = requestBuilder.ToString();
+                Console.WriteLine("Received: " + requestString);
+
+                if (string.IsNullOrWhiteSpace(requestString))
                 {
                     Console.WriteLine("Empty request received, closing connection.");
                     return;
                 }
 
-                Console.WriteLine("Received: " + requestString);//shows the request
-
-                using StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };//creates a writer for the response
-
-
-                //--------Routing--------
-
-                _router.RequestParseRouter(requestString, writer);//sends the requeststring to the router
+                using StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
+                lock (_routerLock)
+                {
+                    _router.RequestParseRouter(requestString, writer);
+                }
 
                 writer.Flush();//makes sure the writer is sent
             }
@@ -104,7 +120,7 @@ namespace MonsterTradingCardGame.Server
             }
             finally
             {
-                Console.WriteLine("Closing client connection.");
+                Console.WriteLine("-----XXX Closing client connection XXX-----");
                 client.Close();//closes client even if error happens
             }
         }
