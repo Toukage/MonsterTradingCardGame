@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using Npgsql;
+using Npgsql.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,82 +11,131 @@ namespace MonsterTradingCardGame.DataLayer
 {
     public class TokenManager
     {
-        public string GetToken(int userId)//looks if user already has an existing token
-        {
-            using (var connection = Database.Database.Connection())//connects to database
-            using (var command = new NpgsqlCommand("SELECT token FROM tokens WHERE user_id = @userId;", connection))//sql query for getting token
-            {
-                command.Parameters.AddWithValue("@userId", userId);//replaces username with the correct value in sql query
+        private readonly Response _response = new();
 
-                using (var reader = command.ExecuteReader())//reads the answer
+        //----------------------GET--DATA----------------------
+        public string GetTokenFromId(int userId)//gets token from userid
+        {
+            Console.WriteLine("** inside GetTokenFromId **");//debug
+            try
+            {
+                using (var connection = Database.Database.Connection())
+                using (var command = new NpgsqlCommand("SELECT token FROM Tokens WHERE user_id = @userId;", connection))
                 {
-                    if (reader.Read())
+                    command.Parameters.AddWithValue("@userId", userId);
+
+                    using (var reader = command.ExecuteReader())//reads the answer
                     {
-                        return reader.GetString(reader.GetOrdinal("token"));//if token exists it gets sent back
+                        if (reader.Read())
+                        {
+                            return reader.GetString(reader.GetOrdinal("token"));
+                        }
+                    }
+                }
+                Console.WriteLine("No token found for the specified user.");
+                return null;
+            }
+            catch(NpgsqlException ex)
+            {
+                Console.WriteLine($"PostgresException caught in GetTokenFromId: {ex.Message}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception caught in GetTokenFromId: {ex.Message}");
+                return null;
+            }
+
+        }
+
+        public int? GetUserIdFromToken(string token)//gets id from token
+        {
+            try
+            {
+                using (var connection = Database.Database.Connection())
+                using (var command = new NpgsqlCommand("SELECT user_id FROM Tokens WHERE token = @token;", connection))
+                {
+                    command.Parameters.AddWithValue("@token", token);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return reader.GetInt32(reader.GetOrdinal("user_id"));
+                        }
+                    }
+                }
+                Console.WriteLine("Token not found.");//debug
+                return null;
+            }
+            catch (PostgresException ex)
+            {
+                Console.WriteLine($"PostgresException caught in GetUserIdFromToken: {ex.Message}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"PostgresException caught in GetUserIdFromToken: {ex.Message}");
+                return null;
+            }
+        }
+
+        public bool ValidateToken(string token)//validates token, if valid returns userID
+        {
+            try
+            {
+                using (var connection = Database.Database.Connection())//connects to db
+                using (var command = new NpgsqlCommand("SELECT 1 FROM Tokens WHERE token = @token;", connection))
+                {
+                    command.Parameters.AddWithValue("@token", token);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Console.WriteLine($"** token found !!!! **");
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
                     }
                 }
             }
-
-            return null;//if the user doesnt have a token it returns null
-        }
-
-        public string GenerateToken(string username)//makes a new token string with the username
-        {
-            return $"{username}-mtcgToken";//token in the same format as in the Project Spezifications
-        }
-
-        public void SaveToken(int userId, string token)//speichert token in datenbank
-        {
-            using (var connection = Database.Database.Connection())//connection to db
-            using (var command = new NpgsqlCommand("INSERT INTO tokens (user_id, token) VALUES (@userId, @token) ON CONFLICT (user_id) DO UPDATE SET token = @token;", connection))//sql query die token zu den usernams speichert
+            catch (NpgsqlException ex)
             {
-                command.Parameters.AddWithValue("@userId", userId);//replaces username with the correct value in sql query
-                command.Parameters.AddWithValue("@token", token);//replaces token with the correct value in sql query
-                command.ExecuteNonQuery();//executes the query
+                Console.WriteLine($"PostgresException caught in ValidateToken: {ex.Message}");
+                return false;
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception caught in ValidateToken: {ex.Message}");
+                return false;
+            }           
         }
 
-        public int? ValidateToken(string token)//validates token , to see if the already provided token exists for a user , if yes it returns the username
+        //----------------------WRITE--DATA----------------------
+        public void InsertToken(int userId, string token)//Saves token into DB
         {
-            using (var connection = Database.Database.Connection())//connects to db
-            using (var command = new NpgsqlCommand("SELECT user_id FROM tokens WHERE token = @token;", connection))//sql query for getting the username based on token
+            try
             {
-                command.Parameters.AddWithValue("@token", token);//replaces the token placeholder with the correct value
-
-                using (var reader = command.ExecuteReader())//reads the result
+                using (var connection = Database.Database.Connection())
+                using (var command = new NpgsqlCommand("INSERT INTO tokens (user_id, token) VALUES (@userId, @token) ON CONFLICT (user_id) DO UPDATE SET token = @token;", connection))
                 {
-                    if (reader.Read())
-                    {
-                        return reader.GetInt32(reader.GetOrdinal("user_id"));
-                    }
+                    command.Parameters.AddWithValue("@userId", userId);
+                    command.Parameters.AddWithValue("@token", token);
+                    command.ExecuteNonQuery();
+                    Console.WriteLine($"Debug: Token for user {userId} inserted/updated successfully.");
                 }
             }
-
-            return null;//if token doesnt exist it returns null
-        }
-
-        public string CheckToken(int userId, string username, StreamWriter writer)//methode that handels token generation on login
-        {
-            string token = GetToken(userId);//checks for existing token based on username
-
-            if (token != null)//if the user has a token it returns said token
+            catch(NpgsqlException ex)
             {
-                writer.WriteLine("HTTP/1.1 200 Ok");
-                writer.WriteLine();
-                writer.WriteLine($"here : {username}: {token}");
-                return token;
+                Console.WriteLine($"PostgresException caught in InsertToken! Error: {ex.Message}");
             }
-            else //if user doesnt have a token , it generates one and returns the new token
+            catch (Exception ex)
             {
-                token = GenerateToken(username);//methode to generate token
-                SaveToken(userId, token);//methode to save token to database
-
-                writer.WriteLine("HTTP/1.1 200 Ok");
-                writer.WriteLine();
-                writer.WriteLine($"here : {username}: {token}");
-                return token;
+                Console.WriteLine($"Exception caught in InsertToken! Error: {ex.Message}");
             }
         }
     }
-
 }
