@@ -8,5 +8,11 @@ namespace MonsterTradingCardGame.DataLayer
 {
     internal class TradeManager
     {
+        private readonly Response _response;
+
+        public TradeManager()
+        {
+            _response = new Response();
+        }
     }
 }
