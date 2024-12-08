@@ -7,20 +7,28 @@ using System.Threading.Tasks;
 using System.Diagnostics.Metrics;
 using System.Collections.Generic;
 using MonsterTradingCardGame.DataLayer;
+using MonsterTradingCardGame.BusinessLayer;
+using Microsoft.VisualBasic;
 
 
 namespace MonsterTradingCardGame.Routing
 {
     public class Router
     {
-        private readonly Parser _parser;
-        private readonly UserManagement _management;
+        private readonly Parser _parser = new();
+        private readonly Package _pack = new();
+        private readonly Card _card = new();
+        private readonly User _user = new();
+        private readonly Response _response = new();
+        private readonly Deck _deck = new();
+        private readonly Trade _trade = new();
+        private readonly Stack _stacks = new();
+
         public Router()
         {
             _parser = new Parser(this);
-            _management = new UserManagement(_parser);//for calling register/login
-
         }
+
 
         //----------RequestParseRouter----------
 
@@ -37,8 +45,7 @@ namespace MonsterTradingCardGame.Routing
 
             if (path == "/")
             {
-                HandleRoot(writer);//root path sends a welcome message
-                Console.WriteLine("** inside root if condition **");
+                _response.HttpResponse(400, "No Endpoint given", writer);
                 return;
             }
 
@@ -52,9 +59,17 @@ namespace MonsterTradingCardGame.Routing
                     Console.WriteLine("** inside switch case for POST **");
                     PostRouter(path, headers, body, writer);
                     break;
+                case "PUT":
+                    Console.WriteLine("** inside switch case for PUT **");
+                    PutRouter(path, headers, body, writer);
+                    break;
+                case "DELETE":
+                    Console.WriteLine("** inside switch case for DELETE **");
+                    DeleteRouter(path, headers, body, writer);
+                    break;  
                 default:
                     Console.WriteLine("** inside switch case badreq **");
-                    BadReq(writer);
+                    _response.HttpResponse(400, "Invalid Methode", writer);
                     break;
             }
         }
@@ -67,17 +82,35 @@ namespace MonsterTradingCardGame.Routing
             {
                 case "/sessions"://path for login
                     Console.WriteLine("** inside switch case for sessions **");
-                    _management.Login(body, headers, writer);
+                    _user.Login(body, headers, writer);
                     break;
 
                 case "/users"://path for register
                     Console.WriteLine("** inside switch case for register **");
-                    _management.Register(body, writer);
+                    _user.Register(body, writer);
+                    break;
+
+                case "/packages"://path for admin pack generation
+                    Console.WriteLine("** inside switch case for package **");
+                    _pack.CreatePack(body, headers, writer);
+                    break;
+
+                case "/transactions/packages":
+                    Console.WriteLine("** inside switch case for buying packs **");
+                    _pack.BuyPack(headers, writer);
+                    break;
+
+                case "/battles":
+                    Console.WriteLine("** inside switch case for battles **");
+                    break;
+
+                case "/tradings":
+                    Console.WriteLine("** inside switch case for trading **");
                     break;
 
                 default:
                     Console.WriteLine("** inside switch case for not found **");
-                    NotFound(writer);
+                    _response.HttpResponse(404, "Endpoint not found", writer);
                     break;
             }
         }
@@ -88,49 +121,73 @@ namespace MonsterTradingCardGame.Routing
             Console.WriteLine($"GetRouter called for path: {path}");
             switch (path)
             {
-                case "/cards"://path for accessing cards
-                    _management.GetCards(body, headers, writer);
-                    string responseBody = "GET request received for /cards.";
-                    Console.WriteLine("Handling GET /cards");
+                case "/cards":
+                    _stacks.GetStack(headers, writer);
+                    Console.WriteLine("Handling GET /cards");//debug
                     break;
+
+                case "/deck":
+                    _deck.CheckDeck(body, headers, writer);
+                    Console.WriteLine("Handling GET /deck");//debug
+                    break;
+
+                case "/users":
+                    Console.WriteLine("** inside switch case for getting user data **");
+                    break;
+
+                case "/tradings":
+                    Console.WriteLine("** inside switch case for trading **");
+
+                    break;
+
+                case "/stats":
+                    Console.WriteLine("** inside switch case for stats **");
+                    break;
+
+                case "/scoreboard":
+                    Console.WriteLine("** inside switch case for scoreboard **");
+                    break;
+
                 default:
-                    NotFound(writer);
+                    _response.HttpResponse(404, "Endpoint not found", writer);
                     break;
             }
         }
 
-        //----------Root-Path-Handler----------
-        private void HandleRoot(StreamWriter writer)//creates welcome page for root path :)
+        private void PutRouter(string path, string headers, string body, StreamWriter writer)//routes all Get method actions
         {
-            string responseBody = "200 OK";
-            writer.WriteLine("HTTP/1.1 200 OK");
-            writer.WriteLine("Content-Type: text/html");
-            writer.WriteLine("Content-Length: 76");
-            writer.WriteLine();
-            writer.WriteLine("<html><body><h1>Welcome to the Monster Trading Card Game Server!</h1></body></html>");
+            Console.WriteLine("** inside GetRouter **");
+            Console.WriteLine($"GetRouter called for path: {path}");
+            switch (path)
+            {
+                case "/deck":
+                    Console.WriteLine("** inside switch case for deck creation **");//debug
+                    break;
+
+                case "/users":
+                    Console.WriteLine("** inside switch case for user editing **");//debug
+                    break;
+
+                default:
+                    _response.HttpResponse(404, "Endpoint not found", writer);
+                    break;
+            }
         }
 
-        //----------Error-Handlers----------
-        private void NotFound(StreamWriter writer)//Not Found error handler
+        private void DeleteRouter(string path, string headers, string body, StreamWriter writer)//routes all Get method actions
         {
-            string responseBody = "404 Not Found";
-            writer.WriteLine("HTTP/1.1 404 Not Found");
-            writer.WriteLine("Content-Type: text/plain");
-            writer.WriteLine($"Content-Length: {responseBody.Length}");
-            writer.WriteLine("Connection: close");
-            writer.WriteLine();
-            writer.WriteLine(responseBody);
-        }
+            Console.WriteLine("** inside GetRouter **");//debug
+            Console.WriteLine($"GetRouter called for path: {path}");
+            switch (path)
+            {
+                case "/tradings":
+                    Console.WriteLine("** inside switch case for deleting a trade **");
+                    break;
 
-        public void BadReq(StreamWriter writer)//Bad request error handler
-        {
-            string responseBody = "400 Bad Request";
-            writer.WriteLine("HTTP/1.1 400 Bad Request");
-            writer.WriteLine("Content-Type: text/plain");
-            writer.WriteLine($"Content-Length: {responseBody.Length}");
-            writer.WriteLine("Connection: close");
-            writer.WriteLine();
-            writer.WriteLine(responseBody);
+                default:
+                    _response.HttpResponse(404, "Endpoint not found", writer);
+                    break;
+            }
         }
     }
 }
