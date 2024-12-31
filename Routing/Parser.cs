@@ -22,7 +22,7 @@ namespace MonsterTradingCardGame.Routing
 
         public void RequestParse(string requestString, StreamWriter writer)
         {
-            string[] requestLines = requestString.Split(new[] { "\r\n" }, StringSplitOptions.None);
+            string[] requestLines = requestString.Split(new[] { "\r\n" }, StringSplitOptions.None);//system enviroment line ending.
 
             if (requestLines.Length < 1)
             {
@@ -206,7 +206,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        private string GetMonsterType(string cardName)
+        private string GetMonsterType(string cardName)//enums, get name for each name 
         {
             if (cardName.Contains("dragon", StringComparison.OrdinalIgnoreCase))
             {
@@ -219,10 +219,6 @@ namespace MonsterTradingCardGame.Routing
             else if (cardName.Contains("ork", StringComparison.OrdinalIgnoreCase))
             {
                 return "Ork";
-            }
-            else if (cardName.Contains("knight", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Knight";
             }
             else if (cardName.Contains("knight", StringComparison.OrdinalIgnoreCase))
             {

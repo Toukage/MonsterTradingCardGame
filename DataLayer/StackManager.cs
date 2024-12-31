@@ -83,7 +83,7 @@ namespace MonsterTradingCardGame.DataLayer
             try
             {
                 using (var connection = Database.Database.Connection())
-                using (var command = new NpgsqlCommand("SELECT card_id FROM StackCards WHERE stack_id = (SELECT stack_id FROM Stacks WHERE user_id = @userId);", connection))
+                using (var command = new NpgsqlCommand("SELECT card_id FROM StackCards WHERE stack_id = (SELECT stack_id FROM Stacks WHERE user_id = @userId);", connection))//join in db 
                 {
                     command.Parameters.AddWithValue("@userId", userId);
                     using (var reader = command.ExecuteReader())

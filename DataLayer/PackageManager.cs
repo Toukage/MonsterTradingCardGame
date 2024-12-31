@@ -64,7 +64,7 @@ namespace MonsterTradingCardGame.DataLayer
 
                 try
                 {
-                    int rowsAffected = command.ExecuteNonQuery()
+                    int rowsAffected = command.ExecuteNonQuery();
                     Console.WriteLine($"** pack created **");//debug
                     _response.HttpResponse(201, "Package created successfully", writer);
 

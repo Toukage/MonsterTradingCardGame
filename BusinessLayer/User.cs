@@ -25,7 +25,7 @@ namespace MonsterTradingCardGame.BusinessLayer
         public int Losses { get; set; }
 
         //----------------------LOGIN----------------------
-        public void Login(string body, string headers, StreamWriter writer)
+        public void Login(string body, StreamWriter writer)
         {
             Console.WriteLine("** inside login function **");//debug
 
