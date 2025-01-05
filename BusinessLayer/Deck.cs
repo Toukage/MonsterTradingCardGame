@@ -1,33 +1,24 @@
 ﻿using MonsterTradingCardGame.DataLayer;
 using MonsterTradingCardGame.Routing;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MonsterTradingCardGame.BusinessLayer
 {
     public class Deck
     {
-        private readonly DeckManager _deckMan = new();
+        private readonly DeckRepo _deckMan = new();
         private readonly Response _response = new();
-        private readonly CardManager _cardMan = new();
+        private readonly CardRepo _cardMan = new();
         private readonly Tokens _token = new();
-        private readonly StackManager _stackMan = new();
+        private readonly StackRepo _stackMan = new();
         private readonly Parser _parser = new();
 
         public int UserId { get; set; }
         public List<Card> DeckCards { get; set; } = new List<Card>();
-       
+
+        //-----------DECK--VIEWING-----------
         public async Task GetDeck(User user, StreamWriter writer)
         {
             Console.WriteLine("** in get deck *");//debug
-
-            if (!await CheckDeck(user, writer))
-            {
-                return; // Deck doesn't exist or creation failed
-            }
 
             var userDeck = new Deck { UserId = user.UserId };
 
@@ -56,69 +47,95 @@ namespace MonsterTradingCardGame.BusinessLayer
             }
         }
 
-        public async Task <bool> CheckDeck(User user, StreamWriter writer)//checks if deck exists /creates one
-        {
-            Console.WriteLine("** Checking deck for user. **");
+        //-----------EDITING--DECK-----------
 
-            bool deckExists = await _deckMan.GetDeckForUser(user.UserId);// X
-
-            if (deckExists)// found deck
-            {
-                Console.WriteLine($"** User has a deck. **");
-                return true;
-            }
-
-            Console.WriteLine("** User does not have a Deck yet. **");
-
-            bool deckCreated = await _deckMan.CreateDeckForUser(user.UserId);
-            if (deckCreated)
-            {
-                Console.WriteLine($"** Deck created successfully. **");
-                return true;
-            }
-            await _response.HttpResponse(500, "Deck search failed", writer);
-                return false;
-        }
-        private static readonly object _deckLock = new();
-        public async Task UpdateDeck(string body, User user, StreamWriter writer) 
+        private static readonly object _deckLock = new();//lock object for deck editing
+        public async Task UpdateDeck(string body, User user, StreamWriter writer)//updating deck with new cards 
         {
             Console.WriteLine("** Updating deck **");
-            lock (_deckLock) // Locking to avoid concurrent modifications
+            lock (_deckLock)//lock so only one thread can edit the deck at a time
             {
-                Console.WriteLine("** Checking for existing deck **");
+                Console.WriteLine("** Checking for existing deck **");//debug
             }
 
-            await CheckDeck(user, writer);
-
-            List<string> cardIds = _parser.CardIdParse(body, writer); // MUST MAKE PARSING METHOD
+            List<string> cardIds = _parser.CardIdParse(body, writer);
 
             if (cardIds.Count != 4)
             {
-                Console.WriteLine("** Incorrect number of card IDs provided **");
+                Console.WriteLine("** Incorrect number of card IDs provided **");//debug
                 await _response.HttpResponse(400, "You must provide exactly 4 card IDs.", writer);
                 return;
             }
 
-            // Verify that the user owns the cards
-            if (!await _deckMan.VerifyCards(user.UserId, cardIds))
+            if (!await _deckMan.VerifyCards(user.UserId, cardIds))//checks if the user owns all the cards
             {
-                Console.WriteLine("** User does not own all provided cards **");
+                Console.WriteLine("** User does not own all provided cards **");//debug
                 await _response.HttpResponse(403, "You do not own all the provided cards.", writer);
                 return;
             }
 
-            // Update the deck with the new card IDs
-            if (await _deckMan.UpdateDeckCards(user.UserId, cardIds))
+            if (await _deckMan.UpdateDeckCards(user.UserId, cardIds))//updates the deck with the new cards
             {
-                Console.WriteLine("** Deck updated successfully **");
+                Console.WriteLine("** Deck updated successfully **");//debug
                 await _response.HttpResponse(200, "Deck updated successfully.", writer);
             }
             else
             {
-                Console.WriteLine("** Failed to update deck **");
+                Console.WriteLine("** Failed to update deck **");//debug
                 await _response.HttpResponse(500, "Failed to update deck.", writer);
             }
 
+        }
+
+        public async Task FinalizeDeck(Deck originalDeck, Deck battleDeck, int userId, List<string> battleLog)//removes lost cards from the deck and adds won cards to the stack
+        {
+            //lists for lost and won cards
+            List<Card> cardsLost = new List<Card>();
+            List<Card> cardsWon = new List<Card>();
+
+            //checks which cards are missing from the original deck
+            foreach (var card in originalDeck.DeckCards)
+            {
+                if (!battleDeck.DeckCards.Any(bCard => bCard.CardID == card.CardID))
+                {
+                    cardsLost.Add(card);
+                }
+            }
+
+            //checks which cards are new / not from the original deck
+            foreach (var card in battleDeck.DeckCards)
+            {
+                if (!originalDeck.DeckCards.Any(oCard => oCard.CardID == card.CardID))
+                {
+                    cardsWon.Add(card);
+                }
+            }
+
+            lock (_deckLock)
+            {
+                battleLog.Add($"Cards Player {userId} lost during battle:");
+            }
+            foreach (var card in cardsLost)
+            {
+                lock (_deckLock)
+                {
+                    battleLog.Add($"- {card.CardName} | ID: {card.CardID}");
+                }
+                await _deckMan.RemoveCardFromDeck(userId, card.CardID);
+            }
+
+            lock (_deckLock)
+            {
+                battleLog.Add($"Cards Player {userId} won during battle:");
+            }
+            foreach (var card in cardsWon)
+            {
+                lock (_deckLock)
+                {
+                    battleLog.Add($"- {card.CardName} | ID: {card.CardID}");
+                }
+                await _stackMan.InsertCardsIntoUserStack(userId, new List<string> { card.CardID });
+            }
         }
     }
 }

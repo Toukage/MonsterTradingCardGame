@@ -1,18 +1,5 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Text;
-using Npgsql.Internal;
-using System.Threading.Tasks;
-using System.Diagnostics.Metrics;
-using System.Collections.Generic;
-using MonsterTradingCardGame.DataLayer;
+﻿using MonsterTradingCardGame.DataLayer;
 using MonsterTradingCardGame.BusinessLayer;
-using Microsoft.VisualBasic;
-using Newtonsoft.Json.Linq;
-using System.Reflection.PortableExecutable;
-using static MonsterTradingCardGame.BusinessLayer.User;
-
 
 namespace MonsterTradingCardGame.Routing
 {
@@ -20,7 +7,6 @@ namespace MonsterTradingCardGame.Routing
     {
         private readonly Parser _parser;
         private readonly Package _pack = new();
-        private readonly Card _card = new();
         private readonly User _user = new();
         private readonly UserRepo _userMan = new();
         private readonly Response _response = new();
@@ -36,19 +22,16 @@ namespace MonsterTradingCardGame.Routing
             _parser = parser;
         }
 
-        //token check before routing 
         //----------Router--for--Request--Parsing----------
 
         public async Task RequestParseRouter(string requestString, StreamWriter writer)
         {
             try
             {
-                // Parsing the request correctly and awaiting the result
                 var parser = new Parser();
-                var (method, path, headers, body) = parser.RequestParse(requestString, writer);
+                var (method, path, headers, body) = parser.RequestParse(requestString, writer);//parses the request
 
-                // Call the method router with parsed data
-                await MethodRouter(method, path, headers, body, writer);
+                await MethodRouter(method, path, headers, body, writer);//sends parsed data to method router where it gets handeld acording to the users actions
             }
             catch (Exception ex)
             {
@@ -65,7 +48,7 @@ namespace MonsterTradingCardGame.Routing
             if (path == "/sessions" || path == "/users")//router for users and sessions since no need for token
             {
                 await NoTokenRouter(path, body, writer);
-                return; // Skip token validation and further routing
+                return;
             }
             User user = new User();
             var (isValid, userId) = await _token.CheckToken(headers, user, writer);//checks token and gives userid
@@ -74,11 +57,11 @@ namespace MonsterTradingCardGame.Routing
             {
                 switch (method.ToUpper())//toupper to avoid case issues
                 {
-                    case "GET"://sends all get requets to the get router
+                    case "GET"://sends all get requets to the get router etc.
                         Console.WriteLine("** inside switch case for GET **");
                         await GetRouter(path, body, user, writer);
                         break;
-                    case "POST": //sends all post requests to post router
+                    case "POST":
                         Console.WriteLine("** inside switch case for POST **");
                         await PostRouter(path, headers, body, user, writer);
                         break;
@@ -116,17 +99,17 @@ namespace MonsterTradingCardGame.Routing
             switch (path)
             {
                 case "/sessions"://path for login
-                    Console.WriteLine("** inside switch case for sessions **");
                     await _user.Login(body, writer);
+                    Console.WriteLine("** inside switch case for sessions **");//debug
                     break;
 
                 case "/users"://path for register
-                    Console.WriteLine("** inside switch case for register **");
                     await _user.Register(body, writer);
+                    Console.WriteLine("** inside switch case for register **");//debug
                     break;
                 default:
-                    Console.WriteLine("** inside switch case for not found **");
                     await _response.HttpResponse(404, "Endpoint not found", writer);
+                    Console.WriteLine("** inside switch case for not found **");//debug
                     break;
             }
         }
@@ -150,12 +133,12 @@ namespace MonsterTradingCardGame.Routing
                     break;
 
                 case "/transactions/packages":
-                    Console.WriteLine("** inside switch case for buying packs **");
+                    Console.WriteLine("** end of switch case for buying packs **");//debug
                     await _pack.BuyPack(user, writer);
                     break;
 
                 case "/battles":
-                    Console.WriteLine("** inside switch case for battles **");
+                    Console.WriteLine("** end of switch case for battles **");//debug
                     await _battle.CardBattle(user.UserId, writer);
                     break;
 
@@ -169,11 +152,11 @@ namespace MonsterTradingCardGame.Routing
                     {
                         await _trade.NewTrade(body, user, writer);
                     }
-                    Console.WriteLine("** inside switch case for trading **");
+                    Console.WriteLine("** end of switch case for trading **");//debug
                     break;
 
                 default:
-                    Console.WriteLine("** inside switch case for not found **");
+                    Console.WriteLine("** end of switch case for not found **");//debug
                     await _response.HttpResponse(404, "Endpoint not found", writer);
                     break;
             }
@@ -181,7 +164,6 @@ namespace MonsterTradingCardGame.Routing
 
         private async Task GetRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
-            Console.WriteLine("** inside GetRouter **");
             Console.WriteLine($"GetRouter called for path: {path}");
             switch (path)
             {
@@ -205,17 +187,17 @@ namespace MonsterTradingCardGame.Routing
                     {
                         await _response.HttpResponse(401, "Unauthorized", writer);
                     }
-                    Console.WriteLine("** inside switch case for getting user data **");
+                    Console.WriteLine("** end of switch case for getting user data **");//debug
                     break;
 
                 case "/tradings":
                     await _trade.GetTrades(writer);
-                    Console.WriteLine("** inside switch case for trading **");
+                    Console.WriteLine("** end of  switch case for trading **");//debug
                     break;
 
                 case "/stats":
                     await _score.Stats(user, writer);
-                    Console.WriteLine("** inside switch case for stats **");
+                    Console.WriteLine("** end of  switch case for stats **");//debug
                     break;
 
                 case "/scoreboard":
@@ -231,8 +213,7 @@ namespace MonsterTradingCardGame.Routing
 
         private async Task PutRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
-            Console.WriteLine("** inside GetRouter **");
-            Console.WriteLine($"GetRouter called for path: {path}");
+            Console.WriteLine($"GetRouter called for path: {path}");//debug
             switch (path)
             {
                 case "/deck":
@@ -250,7 +231,7 @@ namespace MonsterTradingCardGame.Routing
                     {
                         await _response.HttpResponse(401, "Unauthorized", writer);
                     }
-                    Console.WriteLine("** inside switch case for putting user data **");
+                    Console.WriteLine("** end of switch case for putting user data **");//debug
                     break;
 
                 default:
@@ -261,13 +242,12 @@ namespace MonsterTradingCardGame.Routing
 
         private async Task DeleteRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
-            Console.WriteLine("** inside GetRouter **");//debug
-            Console.WriteLine($"GetRouter called for path: {path}");
+            Console.WriteLine($"GetRouter called for path: {path}");//debug
             switch (path)
             {
                 case string s when s.StartsWith("/tradings"):
                     await _trade.RemoveTrade(path, user, writer);
-                    Console.WriteLine("** inside switch case for deleting a trade **");
+                    Console.WriteLine("** inside switch case for deleting a trade **");//debug
                     break;
 
                 default:

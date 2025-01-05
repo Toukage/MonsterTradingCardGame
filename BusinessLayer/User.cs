@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using Newtonsoft.Json;
-using System.Threading.Tasks;
+﻿using MonsterTradingCardGame.DataLayer;
+using MonsterTradingCardGame.Routing;
 
 namespace MonsterTradingCardGame.BusinessLayer
 {
-    public class User//not in use yet
+    public class User
     {
         private readonly Parser _parser = new();
         private readonly Tokens _token = new();
@@ -33,7 +29,7 @@ namespace MonsterTradingCardGame.BusinessLayer
 
             var (username, password) = _parser.UserDataParse(body, writer);
 
-            bool Valid = await _userMan.GetUser(username, password);
+            bool Valid = await _userMan.GetUser(username, password);//checks if the user is valid
             if (Valid)
             {
                 int? userId = await _userMan.GetUserId(username);
@@ -61,14 +57,14 @@ namespace MonsterTradingCardGame.BusinessLayer
             {
                 Console.WriteLine("** isnide valid if statement for register **");//debug
                 await _response.HttpResponse(201, "Successfully Registered", writer);
-            }
+            }//errors are handeld in the userrepo specifically database access methods to show error more clearly
         }
 
         //----------------------PROFILE----------------------
-        public async Task Profile(User user, StreamWriter writer)
+        public async Task Profile(User user, StreamWriter writer)//gets profile
         {
             Console.WriteLine($"** inside get profile function **");//debug
-            if (await _userMan.GetProfile(user, writer))
+            if (await _userMan.GetProfile(user, writer))//if the profile is found
             {
                 await _response.HttpResponse(200, "Profile:", writer);
                 writer.WriteLine($"Name: {user.ProfileName}");
@@ -77,17 +73,16 @@ namespace MonsterTradingCardGame.BusinessLayer
             }
             else
             {
-                // Handle case where profile could not be fetched
                 await _response.HttpResponse(404, "User profile not found", writer);
             }
         }
 
-        public async Task EditProfile(string body, User user,StreamWriter writer)
+        public async Task EditProfile(string body, User user,StreamWriter writer)//updates profile
         {
             Console.WriteLine($"** inside edit profile function **");//debug
             List<string> parsedData = _parser.ProfileDataParse(body, writer);
 
-            if (parsedData.Count == 3)
+            if (parsedData.Count == 3)//if all data is there the profile can be updated
             {
                 user.ProfileName = parsedData[0];
                 user.Bio = parsedData[1];
@@ -101,7 +96,6 @@ namespace MonsterTradingCardGame.BusinessLayer
             
             else
             {
-                // Handle case where profile could not be updated
                 await _response.HttpResponse(400, "Profile could not be updated", writer);
             }
         }

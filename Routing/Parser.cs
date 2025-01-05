@@ -12,6 +12,7 @@ namespace MonsterTradingCardGame.Routing
     public class Parser
     {
         private readonly Router _router;
+        private readonly Response _response = new();
         public Parser(Router router)
         {
             _router = router;
@@ -20,7 +21,7 @@ namespace MonsterTradingCardGame.Routing
         public Parser()
         {
         }
-
+        //----------------------ENTIRE--REQUEST--PARSER----------------------
         public (string method, string path, string headers, string body) RequestParse(string requestString, StreamWriter writer)
         {
             try
@@ -100,7 +101,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        //----------------------BODY--PARSERS----------------------
+        //----------------------USER--PARSERS----------------------
         public (string username, string password) UserDataParse(string body, StreamWriter writer)//parser for getting username/password from the request body
         {
             dynamic credentials;
@@ -118,7 +119,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        public List<string> ProfileDataParse(string body, StreamWriter writer)
+        public List<string> ProfileDataParse(string body, StreamWriter writer)//parses profile data from the request body
         {
             dynamic profile;
             try
@@ -142,7 +143,6 @@ namespace MonsterTradingCardGame.Routing
                 return new List<string>();
             }
 
-            // Prevent null assignments explicitly
             List<string> parsedData = new List<string>
             {
             profile.Name?.ToString() ?? string.Empty,
@@ -156,7 +156,8 @@ namespace MonsterTradingCardGame.Routing
             return parsedData;
         }
 
-        public Trade TradeDataParse(string body, StreamWriter writer)
+        //----------TRADE--PARSER----------
+        public Trade TradeDataParse(string body, StreamWriter writer)//parses trade data from the request body
         {
             try
             {
@@ -205,7 +206,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        public string ParseCardId(string body, StreamWriter writer)
+        public string ParseCardId(string body, StreamWriter writer)//parses card id from the request body
         {
             try
             {
@@ -226,7 +227,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        public string ParseTradeId(string path, StreamWriter writer)
+        public string ParseTradeId(string path, StreamWriter writer)//parses trade id from the request path
         {
             string[] pathParts = path.Split('/');
             if (pathParts.Length < 3 || string.IsNullOrEmpty(pathParts[2]))
@@ -238,7 +239,6 @@ namespace MonsterTradingCardGame.Routing
             return pathParts[2].Trim();
         }
 
-
         //----------TOKEN--PARSER----------
         public string TokenParse(string headers, StreamWriter writer)//gets token from header
         {
@@ -248,18 +248,14 @@ namespace MonsterTradingCardGame.Routing
             {
                 if (header.StartsWith("Authorization: Bearer "))
                 {
-                    // Extract the token by removing the "Bearer " prefix
                     return header.Substring("Authorization: Bearer ".Length).Trim();//gets token by deleting unecessary words and only leaving the token / sends it back
                 }
             }
-            writer.WriteLine("HTTP/1.1 400 Bad Request");
-            writer.WriteLine();
-            writer.WriteLine("Invalid Authorization header format. Expected 'Bearer <token>'.");
             return null;
         }
 
         //----------CARD--PARSER----------
-        public List<Card> CardDataParse(string body, StreamWriter writer)
+        public List<Card> CardDataParse(string body, StreamWriter writer)//parses card data from the request body
         {
             try
             {
@@ -293,10 +289,6 @@ namespace MonsterTradingCardGame.Routing
 
                         card.CardMonster = GetMonsterType(card.CardName);
                     }
-
-                    //Debug
-
-                    //Console.WriteLine($"Card Parsed: Name: {card.CardName}, Type: {card.CardType}, Element: {card.CardElement}, Monster: {card.CardMonster}");
                 }
 
                 return data;
@@ -309,30 +301,28 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        public List<string> CardIdParse(string body, StreamWriter writer)
+        public List<string> CardIdParse(string body, StreamWriter writer)//parses card ids from the request body
         {
             try
             {
-                // Deserialize the JSON body into a list of card IDs
                 var cardIds = JsonConvert.DeserializeObject<List<string>>(body);
 
-                // Check if the list is null or empty
                 if (cardIds == null || cardIds.Count == 0)
                 {
                     Console.WriteLine("Failed to parse card IDs: No card IDs found in the request body.");
                     _response.HttpResponse(400, "Request body must contain a non-empty list of card IDs.", writer);
-                    return new List<string>(); // Return an empty list to prevent further processing
+                    return new List<string>();//gives back empty list if no card ids are found
                 }
 
                 return cardIds;
             }
-            catch (JsonException ex) // Handle JSON-specific exceptions
+            catch (JsonException ex)//json specific exceptions
             {
                 Console.WriteLine($"JSON parsing error: {ex.Message}");
                 _response.HttpResponse(400, "Invalid JSON format. Please provide a valid list of card IDs.", writer);
-                return new List<string>(); // Return an empty list to prevent further processing
+                return new List<string>();//gives back empty list if json is invalid
             }
-            catch (Exception ex) // Handle any other unexpected exceptions
+            catch (Exception ex)
             {
                 Console.WriteLine($"Unexpected error during card ID parsing: {ex.Message}");
                 _response.HttpResponse(500, "An unexpected error occurred while processing your request.", writer);
@@ -340,7 +330,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        private string GetElement(string cardName)
+        private string GetElement(string cardName)//gets the element of the card
         {
             if (cardName.Contains("fire", StringComparison.OrdinalIgnoreCase))
             {
@@ -356,7 +346,7 @@ namespace MonsterTradingCardGame.Routing
             }
         }
 
-        private string GetMonsterType(string cardName)//enums, get name for each name 
+        private string GetMonsterType(string cardName)//gets the monster type of the card
         {
             if (cardName.Contains("dragon", StringComparison.OrdinalIgnoreCase))
             {
@@ -389,7 +379,7 @@ namespace MonsterTradingCardGame.Routing
             else
             {
                 return "Unknown";
-            }
+            }//could be done with enums, but i did this first and no time to change it
         }
     }
 }

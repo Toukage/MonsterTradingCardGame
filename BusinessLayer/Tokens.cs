@@ -1,13 +1,5 @@
 ﻿using MonsterTradingCardGame.DataLayer;
 using MonsterTradingCardGame.Routing;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
-using System.Text;
-using System.Threading.Tasks;
-using static MonsterTradingCardGame.BusinessLayer.User;
 
 namespace MonsterTradingCardGame.BusinessLayer
 {
@@ -16,9 +8,7 @@ namespace MonsterTradingCardGame.BusinessLayer
         private readonly TokenRepo _tokenMan = new ();
         private readonly Response _response = new ();
         private readonly Parser _parser = new();
-        private readonly UserRepo _userMan = new ();
 
-        
         public int UserId { get; }
         public string Token { get; } 
 
@@ -89,12 +79,7 @@ namespace MonsterTradingCardGame.BusinessLayer
             }
         }
 
-        public string GenerateToken(string username)//generates token
-        {
-            return $"{username}-mtcgToken";//token in Project Spezifications format
-        }
-
-        public bool ValidateUser(string path, User user,StreamWriter writer)
+        public bool ValidateUser(string path, User user, StreamWriter writer)//checks if user in path has correct token
         {
             string name = path.Substring("/users/".Length).Trim();
             string token = user.Token.Split(new[] { "-mtcgToken" }, StringSplitOptions.None)[0];
@@ -108,5 +93,12 @@ namespace MonsterTradingCardGame.BusinessLayer
                 return false;
             }
         }
+
+        //-----------Token--Generation-----------
+        public string GenerateToken(string username)//generates token
+        {
+            return $"{username}-mtcgToken";//token in Project Spezifications format
+        }
+
     }
 }
