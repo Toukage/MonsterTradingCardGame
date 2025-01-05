@@ -16,15 +16,15 @@ namespace MonsterTradingCardGame.Server
     public class Server
     {
         private readonly TcpListener _listener;
-        private bool _isRunning = true;//flag for running the server or closing it
         private readonly Router _router;
+        private readonly SemaphoreSlim _connectionLimit = new SemaphoreSlim(100);
 
-        public Server(string address, int port = 10001, Router router = null)
+        public Server(string address, int port, Router router)
         {
             _listener = new TcpListener(IPAddress.Parse(address), port);//makes the TcpListener with specific adress and port
-            _router = router ?? new Router();//use existing router or make a new one
+            _router = router ?? throw new ArgumentNullException(nameof(router));
+            //use existing router or make a new one
         }
-
 
         public async Task StartAsync()//starts serevr
         {
@@ -33,19 +33,11 @@ namespace MonsterTradingCardGame.Server
                 _listener.Start();//starts TcpListener to accept connections
                 Console.WriteLine($"-> Server started at {IPAddress.Any} : {_listener.LocalEndpoint} <-"); //shows what adress and port is listend at
                 Console.WriteLine("-> connecting . . . <-");
-
-                _ = ServerLoop();//starts server loop async,fire and forget because i dont need to wait for it to be done
-
-                while (true)//stops server if exit is input
+                while (true)
                 {
-                    string input = Console.ReadLine();
-                    if (input == "exit")
-                    {
-                        _isRunning = false;
-                        _listener.Stop();//stops listener too
-                        Console.WriteLine("-> Server stopped <-");
-                        break;
-                    }
+                    var client = await _listener.AcceptTcpClientAsync();
+                    Console.WriteLine("Client connected...");
+                    _ = Task.Run(async () => await HandleRequest(client));//starts the task for handling the request
                 }
             }
             catch (Exception ex)//exception for when server cant start
@@ -54,49 +46,34 @@ namespace MonsterTradingCardGame.Server
             }
         }
 
-
-        private async Task ServerLoop()
+        public async Task HandleRequest(TcpClient client)//conncurrent und asynchron
         {
-            while (_isRunning)//loop to accept and handle incoming con
-            {
-                try
-                {
-                    using TcpClient client = await _listener.AcceptTcpClientAsync();//waits for client , then creats TcpListener obj
-                    Console.WriteLine("-> Client connected. <-");
-                    _ = HandleRequest(client);//Fire and forget, handels the request async
-                }
-                catch (Exception ex)//exception for the loop
-                {
-                    Console.WriteLine($"Error in ServerLoop: {ex.Message}");
-                }
-            }
-        }
-
-        public async Task HandleRequest(TcpClient client)// processes the request
-        {
+            await _connectionLimit.WaitAsync();//waits for the semaphore to be released
             try
             {
-                NetworkStream stream = client.GetStream();// get the stream with all the data
-                byte[] buffer = new byte[1024];//creats byte array because stream is in byte
-                int length = await stream.ReadAsync(buffer, 0, buffer.Length);//makes serverloop wait until ReadAsync is done, reads data async, and gives the length of the message (use full for knowing if it was empty)
-                string requestString = Encoding.UTF8.GetString(buffer, 0, length);//coverts byte to string so we can parse the HTTP req
+                NetworkStream stream = client.GetStream();
+                byte[] buffer = new byte[8192];
+                int length;
+                StringBuilder requestBuilder = new StringBuilder();
 
-                if (length == 0)//check foor empty req
+                
+                while ((length = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)//ließt die daten in chunks für große datenmengen
                 {
-                    Console.WriteLine("Empty request received, closing connection.");
-                    return;
+                    requestBuilder.Append(Encoding.UTF8.GetString(buffer, 0, length));
+                    if (!stream.DataAvailable) break;
                 }
 
-                Console.WriteLine("Received: " + requestString);//shows the request
-
-                using StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };//creates a writer for the response
-
+                string requestString = requestBuilder.ToString();//makes the request into a string
+                Console.WriteLine("Received: " + requestString);
 
                 //--------Routing--------
 
-                _router.RequestParseRouter(requestString, writer);//sends the requeststring to the router
+                
+                using StreamWriter writer = new StreamWriter(stream) { AutoFlush = true };
+                // asynchrones routing
+                await _router.RequestParseRouter(requestString, writer);
 
-                writer.Flush();//makes sure the writer is sent
+                await writer.FlushAsync();//stellt sicher das alles geschrieben wird bevor die verbindung geschlossen wird
             }
             catch (Exception ex)
             {
@@ -104,9 +81,11 @@ namespace MonsterTradingCardGame.Server
             }
             finally
             {
-                Console.WriteLine("Closing client connection.");
-                client.Close();//closes client even if error happens
+                _connectionLimit.Release();
+                Console.WriteLine("-----XXX Closing client connection XXX-----");
+                client.Close(); //schließt die Verbindung
             }
         }
+
     }
 }

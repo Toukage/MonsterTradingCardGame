@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using MonsterTradingCardGame.Server;
 using MonsterTradingCardGame.Routing;
+using MonsterTradingCardGame.DataLayer;
 
 
 namespace MTCG
@@ -15,11 +16,9 @@ namespace MTCG
         {
             IPAddress address = IPAddress.Any;//allows server to listen to all avaible IPAddresses
             int port = 10001;//port that the server will use
-
-            Router router = new Router(); //router instance befor server start
-
-            var parser = new Parser(router);//parser instance that passes the info to router
-
+            var router = new Router(null);
+            var parser = new Parser(router);
+            router = new Router(parser);
             var server = new Server(address.ToString(), port, router);//server listens to HTTP request on ip and port and send the request to teh router
 
             await server.StartAsync();//starts the server asynchronously , so it wont block the rest of the program while waiting for connection

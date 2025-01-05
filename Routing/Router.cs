@@ -7,6 +7,11 @@ using System.Threading.Tasks;
 using System.Diagnostics.Metrics;
 using System.Collections.Generic;
 using MonsterTradingCardGame.DataLayer;
+using MonsterTradingCardGame.BusinessLayer;
+using Microsoft.VisualBasic;
+using Newtonsoft.Json.Linq;
+using System.Reflection.PortableExecutable;
+using static MonsterTradingCardGame.BusinessLayer.User;
 
 
 namespace MonsterTradingCardGame.Routing
@@ -14,123 +19,261 @@ namespace MonsterTradingCardGame.Routing
     public class Router
     {
         private readonly Parser _parser;
-        private readonly UserManagement _management;
-        public Router()
-        {
-            _parser = new Parser(this);
-            _management = new UserManagement(_parser);//for calling register/login
+        private readonly Package _pack = new();
+        private readonly Card _card = new();
+        private readonly User _user = new();
+        private readonly UserRepo _userMan = new();
+        private readonly Response _response = new();
+        private readonly Deck _deck = new();
+        private readonly Trade _trade = new();
+        private readonly Stack _stacks = new();
+        private readonly Tokens _token = new();
+        private readonly Scores _score = new();
+        private readonly Battle _battle = new();
 
+        public Router(Parser parser)
+        {
+            _parser = parser;
         }
 
-        //----------RequestParseRouter----------
+        //token check before routing 
+        //----------Router--for--Request--Parsing----------
 
-        public void RequestParseRouter(string requestString, StreamWriter writer)
+        public async Task RequestParseRouter(string requestString, StreamWriter writer)
         {
-            _parser.RequestParse(requestString, writer);//sends the request to the parser to get some legible 
-        }
+            try
+            {
+                // Parsing the request correctly and awaiting the result
+                var parser = new Parser();
+                var (method, path, headers, body) = parser.RequestParse(requestString, writer);
 
+                // Call the method router with parsed data
+                await MethodRouter(method, path, headers, body, writer);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during request parsing: {ex.Message}");
+                await _response.HttpResponse(500, "Internal Server Error during parsing.", writer);
+            }
+
+        }
 
         //----------Router-Request-Methode----------
-        public void MethodRouter(string method, string path, string headers, string body, StreamWriter writer)
+        private async Task MethodRouter(string method, string path, string headers, string body, StreamWriter writer)
         {
             Console.WriteLine("** inside MethodeRouter **");
-
-            if (path == "/")
+            if (path == "/sessions" || path == "/users")//router for users and sessions since no need for token
             {
-                HandleRoot(writer);//root path sends a welcome message
-                Console.WriteLine("** inside root if condition **");
+                await NoTokenRouter(path, body, writer);
+                return; // Skip token validation and further routing
+            }
+            User user = new User();
+            var (isValid, userId) = await _token.CheckToken(headers, user, writer);//checks token and gives userid
+
+            if (isValid && userId != -1)
+            {
+                switch (method.ToUpper())//toupper to avoid case issues
+                {
+                    case "GET"://sends all get requets to the get router
+                        Console.WriteLine("** inside switch case for GET **");
+                        await GetRouter(path, body, user, writer);
+                        break;
+                    case "POST": //sends all post requests to post router
+                        Console.WriteLine("** inside switch case for POST **");
+                        await PostRouter(path, headers, body, user, writer);
+                        break;
+                    case "PUT":
+                        Console.WriteLine("** inside switch case for PUT **");
+                        await PutRouter(path, body, user, writer);
+                        break;
+                    case "DELETE":
+                        Console.WriteLine("** inside switch case for DELETE **");
+                        await DeleteRouter(path, body, user, writer);
+                        break;
+                    default:
+                        Console.WriteLine("** inside switch case badreq **");
+                        await _response.HttpResponse(400, "Invalid Methode", writer);
+                        break;
+                }
+            }           
+            else if (!isValid)//already handled in tokens
+            {
                 return;
             }
-
-            switch (method.ToUpper())// toupper to avoid case issues
+            else
             {
-                case "GET"://sends all get requets to the get router
-                    Console.WriteLine("** inside switch case for GET **");
-                    GetRouter(path, headers, body, writer);
-                    break;
-                case "POST": //sends all post requests to post router
-                    Console.WriteLine("** inside switch case for POST **");
-                    PostRouter(path, headers, body, writer);
-                    break;
-                default:
-                    Console.WriteLine("** inside switch case badreq **");
-                    BadReq(writer);
-                    break;
+                await _response.HttpResponse(400, "No Endpoint given", writer);
+                return;
             }
+            
+            
         }
 
-        //----------Routers-for-Request-Parsing----------
-        private void PostRouter(string path, string headers, string body, StreamWriter writer)//routs all Post requests
+        //----------Router--for--No-Token--Requests----------
+        private async Task NoTokenRouter(string path, string body, StreamWriter writer)
         {
-            Console.WriteLine("** inside PostRouter **");
+            Console.WriteLine("** inside Non-Token Router **");
             switch (path)
             {
                 case "/sessions"://path for login
                     Console.WriteLine("** inside switch case for sessions **");
-                    _management.Login(body, headers, writer);
+                    await _user.Login(body, writer);
                     break;
 
                 case "/users"://path for register
                     Console.WriteLine("** inside switch case for register **");
-                    _management.Register(body, writer);
+                    await _user.Register(body, writer);
                     break;
-
                 default:
                     Console.WriteLine("** inside switch case for not found **");
-                    NotFound(writer);
+                    await _response.HttpResponse(404, "Endpoint not found", writer);
                     break;
             }
         }
 
-        private void GetRouter(string path, string headers, string body, StreamWriter writer)//routes all Get method actions
+        //----------Routers-for-Requests----------
+        private async Task PostRouter(string path, string headers, string body, User user, StreamWriter writer)//routs all Post requests
+        {
+            Console.WriteLine("** inside PostRouter **");
+            switch (path)
+            {
+                case "/packages"://path for admin pack generation
+                    if (await _userMan.CheckAdmin(user.UserId) == true) //checks if user is admin
+                    {
+                        Console.WriteLine("** inside switch case for package **");
+                        await _pack.CreatePack(body, headers, writer);
+                    }
+                    else //otherwise error
+                    {
+                        await _response.HttpResponse(401, "Admin access required", writer);
+                    }
+                    break;
+
+                case "/transactions/packages":
+                    Console.WriteLine("** inside switch case for buying packs **");
+                    await _pack.BuyPack(user, writer);
+                    break;
+
+                case "/battles":
+                    Console.WriteLine("** inside switch case for battles **");
+                    await _battle.CardBattle(user.UserId, writer);
+                    break;
+
+                case string s when s.StartsWith("/tradings"):
+                    bool hasTradeId = s.Split('/').Length == 3;
+                    if (hasTradeId)
+                    {
+                        await _trade.TradeCard(path, body, user, writer);
+                    }
+                    else
+                    {
+                        await _trade.NewTrade(body, user, writer);
+                    }
+                    Console.WriteLine("** inside switch case for trading **");
+                    break;
+
+                default:
+                    Console.WriteLine("** inside switch case for not found **");
+                    await _response.HttpResponse(404, "Endpoint not found", writer);
+                    break;
+            }
+        }
+
+        private async Task GetRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
             Console.WriteLine("** inside GetRouter **");
             Console.WriteLine($"GetRouter called for path: {path}");
             switch (path)
             {
-                case "/cards"://path for accessing cards
-                    _management.GetCards(body, headers, writer);
-                    string responseBody = "GET request received for /cards.";
-                    Console.WriteLine("Handling GET /cards");
+                case "/cards":
+                    await _stacks.GetStack(user, writer);
+                    Console.WriteLine("Handling GET /cards");//debug
                     break;
+
+                case "/deck":
+                    await _deck.GetDeck(user, writer);
+                    Console.WriteLine("Handling GET /deck");//debug
+                    break;
+
+                case string s when s.StartsWith("/users/"):
+                    bool correctUser = _token.ValidateUser(path, user, writer);
+                    if (correctUser) 
+                    {
+                        await _user.Profile(user, writer);
+                    }
+                    else
+                    {
+                        await _response.HttpResponse(401, "Unauthorized", writer);
+                    }
+                    Console.WriteLine("** inside switch case for getting user data **");
+                    break;
+
+                case "/tradings":
+                    await _trade.GetTrades(writer);
+                    Console.WriteLine("** inside switch case for trading **");
+                    break;
+
+                case "/stats":
+                    await _score.Stats(user, writer);
+                    Console.WriteLine("** inside switch case for stats **");
+                    break;
+
+                case "/scoreboard":
+                    await _score.scoreBoard(writer);
+                    Console.WriteLine("** inside switch case for scoreboard **");
+                    break;
+
                 default:
-                    NotFound(writer);
+                    await _response.HttpResponse(404, "Endpoint not found", writer);
                     break;
             }
         }
 
-        //----------Root-Path-Handler----------
-        private void HandleRoot(StreamWriter writer)//creates welcome page for root path :)
+        private async Task PutRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
-            string responseBody = "200 OK";
-            writer.WriteLine("HTTP/1.1 200 OK");
-            writer.WriteLine("Content-Type: text/html");
-            writer.WriteLine("Content-Length: 76");
-            writer.WriteLine();
-            writer.WriteLine("<html><body><h1>Welcome to the Monster Trading Card Game Server!</h1></body></html>");
+            Console.WriteLine("** inside GetRouter **");
+            Console.WriteLine($"GetRouter called for path: {path}");
+            switch (path)
+            {
+                case "/deck":
+                    await _deck.UpdateDeck(body, user, writer);
+                    Console.WriteLine("** inside switch case for deck creation **");//debug
+                    break;
+
+                case string s when s.StartsWith("/users/"):
+                    bool correctUser = _token.ValidateUser(path, user, writer);
+                    if (correctUser)
+                    {
+                        await _user.EditProfile(body, user, writer);
+                    }
+                    else
+                    {
+                        await _response.HttpResponse(401, "Unauthorized", writer);
+                    }
+                    Console.WriteLine("** inside switch case for putting user data **");
+                    break;
+
+                default:
+                    await _response.HttpResponse(404, "Endpoint not found", writer);
+                    break;
+            }
         }
 
-        //----------Error-Handlers----------
-        private void NotFound(StreamWriter writer)//Not Found error handler
+        private async Task DeleteRouter(string path, string body, User user, StreamWriter writer)//routes all Get method actions
         {
-            string responseBody = "404 Not Found";
-            writer.WriteLine("HTTP/1.1 404 Not Found");
-            writer.WriteLine("Content-Type: text/plain");
-            writer.WriteLine($"Content-Length: {responseBody.Length}");
-            writer.WriteLine("Connection: close");
-            writer.WriteLine();
-            writer.WriteLine(responseBody);
-        }
+            Console.WriteLine("** inside GetRouter **");//debug
+            Console.WriteLine($"GetRouter called for path: {path}");
+            switch (path)
+            {
+                case string s when s.StartsWith("/tradings"):
+                    await _trade.RemoveTrade(path, user, writer);
+                    Console.WriteLine("** inside switch case for deleting a trade **");
+                    break;
 
-        public void BadReq(StreamWriter writer)//Bad request error handler
-        {
-            string responseBody = "400 Bad Request";
-            writer.WriteLine("HTTP/1.1 400 Bad Request");
-            writer.WriteLine("Content-Type: text/plain");
-            writer.WriteLine($"Content-Length: {responseBody.Length}");
-            writer.WriteLine("Connection: close");
-            writer.WriteLine();
-            writer.WriteLine(responseBody);
+                default:
+                    await _response.HttpResponse(404, "Endpoint not found", writer);
+                    break;
+            }
         }
     }
 }

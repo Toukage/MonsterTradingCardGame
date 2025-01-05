@@ -1,16 +1,14 @@
-﻿using System;
+﻿using MonsterTradingCardGame.BusinessLayer;
+using MonsterTradingCardGame.DataLayer;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.IO;
-using System.Text.Json;
-using System.Threading.Tasks;
+using System.Linq;
+using Newtonsoft.Json;
+using System.Diagnostics.Metrics;
 
 namespace MonsterTradingCardGame.Routing
 {
-    using Newtonsoft.Json;
-    using System.Net;
-
     public class Parser
     {
         private readonly Router _router;
@@ -19,63 +17,87 @@ namespace MonsterTradingCardGame.Routing
             _router = router;
         }
 
-        //----------------------REQUEST--PARSER----------------------
-        public void RequestParse(string requestString, StreamWriter writer)
+        public Parser()
         {
-            string[] requestLines = requestString.Split(new[] { "\r\n" }, StringSplitOptions.None);//splits each line of the request into its own object
+        }
 
-            if (requestLines.Length < 1)//error msg when the request has no lines
+        public (string method, string path, string headers, string body) RequestParse(string requestString, StreamWriter writer)
+        {
+            try
             {
-                Console.WriteLine("Invalid request received, closing connection.");
-                return;
-            }
+                string[] requestLines = requestString.Split(new[] { "\r\n" }, StringSplitOptions.None);//system enviroment line ending.
 
-            //--------Request-Line--Handling--------
-
-            string requestStartLine = requestLines[0];//first line gets split off
-            string[] requestLineParts = requestStartLine.Split(' ');//splits request line into methode/path 
-
-            if (requestLineParts.Length < 2)//checks if request line has at least methode and path so it can be used
-            {
-                Console.WriteLine("Malformed request line: " + requestStartLine);
-                return;
-            }
-
-            string method = requestLineParts[0];//extracts method 
-            string path = requestLineParts[1];//extracts path
-
-            Console.WriteLine($"Parsed Request: Method={method}, Path={path}");//debug
-
-            //--------Header--Handling--------
-
-            Dictionary<string, string> headers = new Dictionary<string, string>();//dicitionary to store the headers
-            int i = 1;//counts how many lines there are in the headers
-            Console.WriteLine("** set up dicitionary for strings   **");
-
-            while (i < requestLines.Length && !string.IsNullOrEmpty(requestLines[i]))//loops trough all lines unitl there are no lines / it hits an empty line
-            {
-                Console.WriteLine("** inside while loop for headers  **");//splits header into key n value 
-                string[] headerParts = requestLines[i].Split(new[] { ':' }, 2);
-                if (headerParts.Length == 2)//checks if header is valid
+                if (requestLines.Length < 1)
                 {
-                    headers[headerParts[0].Trim()] = headerParts[1].Trim();//trims extra space / stores headers in dictionary
-                    Console.WriteLine("** inside if condition for headers  **");
+                    Console.WriteLine("Invalid request received, closing connection.");
+                    _response.HttpResponse(400, "Invalid request format", writer);
+                    return (null, null, null, null);
                 }
-                i++;//counts lines
-            }
+
+                //--------Request-Line Handling--------
+                string[] requestLineParts = requestLines[0].Split(' ');
+
+                if (requestLineParts.Length < 2)
+                {
+                    _response.HttpResponse(400, "Invalid request line", writer);
+                    Console.WriteLine("Malformed request line ");
+                    return (null, null, null, null);
+                }
+
+                string method = requestLineParts[0];//extract method
+                string path = requestLineParts[1];//Extract path
+                int queryIndex = path.IndexOf('?');
+                if (queryIndex != -1)
+                {
+                    path = path.Substring(0, queryIndex); // Keep only the base path
+                }
+
+                Console.WriteLine($"----> Parsed Request: Method={method}, Path={path} <----");//debug
+
+                //--------Header Handling--------
+                var headers = new Dictionary<string, string>();
+                string body = string.Empty;
+                bool inHeaders = true;
+                for (int i = 1; i < requestLines.Length; i++)
+                {
+                    string line = requestLines[i].Trim();
+
+                    if (string.IsNullOrEmpty(line))
+                    {
+                        inHeaders = false;
+                        continue;
+                    }
+
+                    if (inHeaders)
+                    {
+                        int colonIndex = line.IndexOf(':');
+                        if (colonIndex > 0)
+                        {
+                            //Console.WriteLine("** inside colconIndex > 0 **");
+                            string headerName = line.Substring(0, colonIndex).Trim(); 
+                            string headerValue = line.Substring(colonIndex + 1).Trim();
+                            headers[headerName] = headerValue;
+                            //Console.WriteLine($"Header: {headerName} = {headerValue}");//debug
+                        }
+                    }
+                    else
+                    {
+                        body = line.Trim(); // Capture the body after headers
+                        //Console.WriteLine($"Body: {body}"); // Debug
+                    }
+                }
 
             Console.WriteLine($"Received headers: {string.Join(", ", headers)}");//STRING BUILDER
 
-            //--------Body--Handling--------
-            Console.WriteLine("** inside body handling **");
-            string body = string.Join("\r\n", requestLines.SkipWhile(line => !string.IsNullOrEmpty(line)).Skip(1));// skip headers and ANY extra empty lines
-
-            //--------Routing--to--Path--------
-            Console.WriteLine("Request received: " + requestString);
-            Console.WriteLine("Method: " + method + ", Path: " + path);
-
-            string headersString = string.Join("\r\n", headers.Select(h => $"{h.Key}: {h.Value}"));//converts the headers back to string after checking all values are valid, and no extra space is left
-            _router.MethodRouter(method, path, headersString, body, writer);//sends parsed info back to router to be handeld
+                //--------Routing to Path--------
+                string headersString = string.Join("\r\n", headers.Select(h => $"{h.Key}: {h.Value}"));//Convert headers back to string
+                return(method, path, headersString, body);
+            }
+            catch (Exception ex)
+            {
+                _response.HttpResponse(500, $"Error parsing request: {ex.Message}", writer);
+                return (null, null, null, null);
+            }
         }
 
         //----------------------BODY--PARSERS----------------------
@@ -85,6 +107,23 @@ namespace MonsterTradingCardGame.Routing
             try
             {
                 credentials = JsonConvert.DeserializeObject<dynamic>(body);//deserializes the json string into dynamic c# obj so we can access the object easier
+                string username = credentials.Username;//converts dynamic obj into string for username / password string 
+                string password = credentials.Password;
+                return (username, password);//sends back parsed data
+            }
+            catch (Exception ex)
+            {
+                _response.HttpResponse(400, $"Invalid JSON format: {ex.Message}", writer);
+                return (null, null);
+            }
+        }
+
+        public List<string> ProfileDataParse(string body, StreamWriter writer)
+        {
+            dynamic profile;
+            try
+            {
+                profile = JsonConvert.DeserializeObject<dynamic>(body);
             }
             catch (Exception ex)
             {
@@ -92,26 +131,116 @@ namespace MonsterTradingCardGame.Routing
                 writer.WriteLine();
                 writer.WriteLine("Invalid JSON format.");
                 Console.WriteLine($"Error parsing JSON: {ex.Message}");
-                return (null, null);
+                return new List<string>();
             }
 
-            if (credentials == null)//error for if there is no data in body, or its in the wrong form 
+            if (profile == null)
             {
                 writer.WriteLine("HTTP/1.1 400 Bad Request");
                 writer.WriteLine();
                 writer.WriteLine("Empty or malformed JSON.");
-                return (null, null);
+                return new List<string>();
             }
 
-            string username = credentials.Username;//converts dynamic obj into string for username / password string 
-            string password = credentials.Password;
+            // Prevent null assignments explicitly
+            List<string> parsedData = new List<string>
+            {
+            profile.Name?.ToString() ?? string.Empty,
+            profile.Bio?.ToString() ?? string.Empty,
+            profile.Image?.ToString() ?? string.Empty
+            };
 
-            //writer.WriteLine($"The Users Credentials are : Username {username} : Password: {password}");
-            return (username, password);//sends back parsed data
+            Console.WriteLine($"-- Parsed Data --");
+            Console.WriteLine($"Name: {parsedData[0]}, Bio: {parsedData[1]}, Image: {parsedData[2]}");
+
+            return parsedData;
         }
 
-        //----------------------HEADER--PARSERS----------------------
-        public string? GetToken(string headers, StreamWriter writer)//gets token from header
+        public Trade TradeDataParse(string body, StreamWriter writer)
+        {
+            try
+            {
+                dynamic data = JsonConvert.DeserializeObject<dynamic>(body);
+                if (data == null)
+                {
+                    writer.WriteLine("HTTP/1.1 400 Bad Request");
+                    writer.WriteLine("Invalid trade data format.");
+                    return null;
+                }
+
+                float minDmg;
+                if (!float.TryParse(data.MinimumDamage?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out minDmg))
+                {
+                    writer.WriteLine("HTTP/1.1 400 Bad Request");
+                    writer.WriteLine("Invalid minimum damage value.");
+                    return null;
+                }
+
+                var trade = new Trade
+                {
+                    TradeId = data.Id?.ToString(),
+                    OfferedCard = new Card
+                    {
+                        CardID = data.CardToTrade?.ToString()
+                    },
+                    RequestedCardType = data.Type?.ToString(),
+                    RequestedMinimumDamage = minDmg
+                };
+
+                if (string.IsNullOrEmpty(trade.TradeId) || trade.OfferedCard == null || string.IsNullOrEmpty(trade.RequestedCardType) || trade.RequestedMinimumDamage < 0)
+                {
+                    writer.WriteLine("HTTP/1.1 400 Bad Request");
+                    writer.WriteLine("Invalid trade data provided.");
+                    return null;
+                }
+
+                Console.WriteLine($"Parsed Trade Data: TradeId={trade.TradeId}, OfferedCard={trade.OfferedCard.CardID}, CardType={trade.RequestedCardType}, MinDmg={trade.RequestedMinimumDamage}");
+                return trade;
+            }
+            catch (JsonException ex)
+            {
+                writer.WriteLine("HTTP/1.1 400 Bad Request");
+                writer.WriteLine($"Error parsing trade data: {ex.Message}");
+                return null;
+            }
+        }
+
+        public string ParseCardId(string body, StreamWriter writer)
+        {
+            try
+            {
+                string cardId = JsonConvert.DeserializeObject<string>(body);
+                if (string.IsNullOrEmpty(cardId))
+                {
+                    writer.WriteLine("HTTP/1.1 400 Bad Request");
+                    writer.WriteLine("Invalid card ID provided.");
+                    return null;
+                }
+                return cardId;
+            }
+            catch (Exception ex)
+            {
+                writer.WriteLine("HTTP/1.1 400 Bad Request");
+                writer.WriteLine($"Error parsing card ID: {ex.Message}");
+                return null;
+            }
+        }
+
+        public string ParseTradeId(string path, StreamWriter writer)
+        {
+            string[] pathParts = path.Split('/');
+            if (pathParts.Length < 3 || string.IsNullOrEmpty(pathParts[2]))
+            {
+                writer.WriteLine("HTTP/1.1 400 Bad Request");
+                writer.WriteLine("Invalid trade ID provided.");
+                return null;
+            }
+            return pathParts[2].Trim();
+        }
+
+
+        //----------TOKEN--PARSER----------
+        public string TokenParse(string headers, StreamWriter writer)//gets token from header
         {
             string[] headerLines = headers.Split("\r\n");//splits header by lines (again)
 
@@ -127,6 +256,140 @@ namespace MonsterTradingCardGame.Routing
             writer.WriteLine();
             writer.WriteLine("Invalid Authorization header format. Expected 'Bearer <token>'.");
             return null;
+        }
+
+        //----------CARD--PARSER----------
+        public List<Card> CardDataParse(string body, StreamWriter writer)
+        {
+            try
+            {
+                var data = JsonConvert.DeserializeObject<List<Card>>(body);
+
+                if (data == null || data.Count == 0)
+                {
+                    Console.WriteLine("Deserialization failed or no cards found.");
+                    return new List<Card>();
+                }
+
+                foreach (var card in data)
+                {
+                    if (string.IsNullOrEmpty(card.CardName))
+                    {
+                        Console.WriteLine("Card name is missing or empty.");
+                        continue; 
+                    }
+
+                    //cheks if the card is a spell or monster
+                    if (card.CardName.Contains("spell", StringComparison.OrdinalIgnoreCase))
+                    {
+                        card.CardType = "Spell";
+                        card.CardMonster = "None"; 
+                        card.CardElement = GetElement(card.CardName);
+                    }
+                    else
+                    {
+                        card.CardType = "Monster";
+                        card.CardElement = GetElement(card.CardName); 
+
+                        card.CardMonster = GetMonsterType(card.CardName);
+                    }
+
+                    //Debug
+
+                    //Console.WriteLine($"Card Parsed: Name: {card.CardName}, Type: {card.CardType}, Element: {card.CardElement}, Monster: {card.CardMonster}");
+                }
+
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing card data: {ex.Message}");
+                _response.HttpResponse(400, $"Invalid card data: \"{ex.Message}\"", writer);
+                return new List<Card>();
+            }
+        }
+
+        public List<string> CardIdParse(string body, StreamWriter writer)
+        {
+            try
+            {
+                // Deserialize the JSON body into a list of card IDs
+                var cardIds = JsonConvert.DeserializeObject<List<string>>(body);
+
+                // Check if the list is null or empty
+                if (cardIds == null || cardIds.Count == 0)
+                {
+                    Console.WriteLine("Failed to parse card IDs: No card IDs found in the request body.");
+                    _response.HttpResponse(400, "Request body must contain a non-empty list of card IDs.", writer);
+                    return new List<string>(); // Return an empty list to prevent further processing
+                }
+
+                return cardIds;
+            }
+            catch (JsonException ex) // Handle JSON-specific exceptions
+            {
+                Console.WriteLine($"JSON parsing error: {ex.Message}");
+                _response.HttpResponse(400, "Invalid JSON format. Please provide a valid list of card IDs.", writer);
+                return new List<string>(); // Return an empty list to prevent further processing
+            }
+            catch (Exception ex) // Handle any other unexpected exceptions
+            {
+                Console.WriteLine($"Unexpected error during card ID parsing: {ex.Message}");
+                _response.HttpResponse(500, "An unexpected error occurred while processing your request.", writer);
+                return new List<string>();
+            }
+        }
+
+        private string GetElement(string cardName)
+        {
+            if (cardName.Contains("fire", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Fire";
+            }
+            else if (cardName.Contains("water", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Water";
+            }
+            else
+            {
+                return "Normal";
+            }
+        }
+
+        private string GetMonsterType(string cardName)//enums, get name for each name 
+        {
+            if (cardName.Contains("dragon", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Dragon";
+            }
+            else if (cardName.Contains("goblin", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Goblin";
+            }
+            else if (cardName.Contains("ork", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Ork";
+            }
+            else if (cardName.Contains("knight", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Knight";
+            }
+            else if (cardName.Contains("kraken", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Kraken";
+            }
+            else if (cardName.Contains("elf", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Elf";
+            }
+            else if (cardName.Contains("wizzard", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Wizzard";
+            }
+            else
+            {
+                return "Unknown";
+            }
         }
     }
 }

@@ -9,12 +9,12 @@ namespace MonsterTradingCardGame.Database
 {
     public class Database
     {
-        private static string connectionString = "Host=localhost;Port=5432;Username=toukage;Password=mtcgserver;Database=MTCG_DB";
+        private static readonly string connectionString = "Host=localhost;Port=5432;Username=toukage;Password=mtcgserver;Database=MTCG_DB";
 
-        public static NpgsqlConnection Connection()
+        public static async Task<NpgsqlConnection> Connection()
         {
             NpgsqlConnection connection = new NpgsqlConnection(connectionString);//erstellt eine verbindung zur datenbank aus den infos von connectionString
-            connection.Open(); // opend die connection zur datenbank
+            await connection.OpenAsync(); //opend die connection zur datenbank
             return connection;
         }
     }
