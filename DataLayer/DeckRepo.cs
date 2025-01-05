@@ -1,84 +1,13 @@
 ﻿using MonsterTradingCardGame.BusinessLayer;
 using Npgsql;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static MonsterTradingCardGame.BusinessLayer.Deck;
-using static MonsterTradingCardGame.BusinessLayer.User;
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class DeckManager
+    internal class DeckRepo
     {
         private readonly Response _response = new();
 
-        public async Task<bool> GetDeckForUser(int userId)//checks if user has a decktable
-        {
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var command = new NpgsqlCommand("SELECT COUNT(*) FROM Decks WHERE user_id = @userId;", connection))
-                {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    int count = Convert.ToInt32( await command.ExecuteScalarAsync());
-                    
-
-                    if (count > 0)
-                    {
-                        Console.WriteLine($"** Deck found !!!! **");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"** No deck found **");
-                        return false;
-                    }
-                }
-            }
-            catch (PostgresException ex)
-            {
-                Console.WriteLine($"PostgresException caught in GetDeckIdForUser! Error: {ex.Message}");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception caught in GetDeckIdForUser! Error:{ex.Message}");
-                return false;
-            }
-        }
-
-        public async Task<bool> CreateDeckForUser(int userId)//creates deck and returns id
-        {
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var command = new NpgsqlCommand("INSERT INTO Decks (user_id) VALUES (@userId);", connection))
-                {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    int rowsAffected = await command.ExecuteNonQueryAsync();
-
-                    if (rowsAffected > 0)
-                    {
-                        Console.WriteLine($"** Deck created.**");
-                        return true;
-                    }
-                    else
-                    {
-                        Console.WriteLine("** Failed to create deck **");
-                        return false;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception caught in CreateDeckForUser: {ex.Message}");
-                return false;
-            }
-        }
-
-        
+        //----------------------GET--DATA----------------------
         public async Task<bool> GetDeckCards(int userId, Deck deck)//get all card IDs for a user from the Decks table
 
         {
@@ -109,7 +38,7 @@ namespace MonsterTradingCardGame.DataLayer
 
                 if (cardIds.Count > 0)
                 {
-                    var cardManager = new CardManager();
+                    var cardManager = new CardRepo();
                     deck.DeckCards = await cardManager.GetCardInfoByIds(cardIds);
                 }
                 else
@@ -127,7 +56,30 @@ namespace MonsterTradingCardGame.DataLayer
             }
         }
 
-        public async Task<bool> VerifyCards(int userId, List<string> cardIds)
+        public async Task<bool> IsCardInDeck(int userId, string cardId)//checks if a card is in a user's deck
+        {
+            Console.WriteLine($"** Checking if card {cardId} is in the deck for user {userId} **");
+
+            try
+            {
+                await using (var connection = await Database.Database.Connection())
+                await using (var command = new NpgsqlCommand("SELECT COUNT(*) FROM Decks WHERE user_id = @userId AND (card_1 = @cardId OR card_2 = @cardId OR card_3 = @cardId OR card_4 = @cardId);", connection))
+                {
+                    command.Parameters.AddWithValue("@userId", userId);
+                    command.Parameters.AddWithValue("@cardId", cardId);
+
+                    int count = Convert.ToInt32(await command.ExecuteScalarAsync());
+                    return count > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error checking if card is in deck: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> VerifyCards(int userId, List<string> cardIds)//checks if a user owns all the provided cards
         {
             try
             {
@@ -146,31 +98,38 @@ namespace MonsterTradingCardGame.DataLayer
                 return false;
             }
         }
-        
-        /*public async Task<bool> VerifyCards(int userId, List<string> cardIds)
+
+        //----------------------WRITE--DATA----------------------
+        public async Task<bool> CreateDeckForUser(int userId)//creates deck and returns id
         {
-            int? stackId;
             try
             {
                 await using (var connection = await Database.Database.Connection())
+                await using (var command = new NpgsqlCommand("INSERT INTO Decks (user_id) VALUES (@userId);", connection))
                 {
-                    await using (var command = new NpgsqlCommand("SELECT COUNT(*) FROM StackCards WHERE stack_id = (SELECT stack_id FROM Stacks WHERE user_id = @userId) AND card_id = ANY(@cardIds);", connection))
+                    command.Parameters.AddWithValue("@userId", userId);
+                    int rowsAffected = await command.ExecuteNonQueryAsync();
+
+                    if (rowsAffected > 0)
                     {
-                        command.Parameters.AddWithValue("@userId", userId);
-                        command.Parameters.AddWithValue("@cardIds", cardIds);
-                        int matchCount = Convert.ToInt32(await command.ExecuteScalarAsync());
-                        return matchCount == cardIds.Count;
+                        Console.WriteLine($"** Deck created.**");
+                        return true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("** Failed to create deck **");
+                        return false;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error verifying cards: {ex.Message}");
+                Console.WriteLine($"Exception caught in CreateDeckForUser: {ex.Message}");
                 return false;
             }
-        }*/
+        }
 
-        public async Task<bool> UpdateDeckCards(int userId, List<string> cardIds)
+        public async Task<bool> UpdateDeckCards(int userId, List<string> cardIds)//updates the deck with the provided cards
         {
             Console.WriteLine("** Updating deck for user **");
 
@@ -219,32 +178,9 @@ namespace MonsterTradingCardGame.DataLayer
                 return false;
             }
         }
-        
-        /*public async Task<bool> UpdateDeckCards(int userId, List<string> cardIds)
-        {
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var command = new NpgsqlCommand("UPDATE Decks SET card_1 = @card1, card_2 = @card2, card_3 = @card3, card_4 = @card4 WHERE user_id = @userId;", connection))
-                {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    command.Parameters.AddWithValue("@card1", cardIds[0]);
-                    command.Parameters.AddWithValue("@card2", cardIds[1]);
-                    command.Parameters.AddWithValue("@card3", cardIds[2]);
-                    command.Parameters.AddWithValue("@card4", cardIds[3]);
 
-                    int rowsAffected = await command.ExecuteNonQueryAsync();
-                    return rowsAffected > 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error updating deck cards: {ex.Message}");
-                return false;
-            }
-        }*/
-
-        public async Task<bool> RemoveCardFromDeck(int userId, string cardId)
+        //----------------------DELETE--DATA----------------------
+        public async Task<bool> RemoveCardFromDeck(int userId, string cardId)//removes a card from a user's deck
         {
             Console.WriteLine("** removing card from user's deck **");
 
@@ -265,30 +201,5 @@ namespace MonsterTradingCardGame.DataLayer
                 return false;
             }
         }
-
-        public async Task<bool> IsCardInDeck(int userId, string cardId)
-        {
-            Console.WriteLine($"** Checking if card {cardId} is in the deck for user {userId} **");
-
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var command = new NpgsqlCommand("SELECT COUNT(*) FROM Decks WHERE user_id = @userId AND (card_1 = @cardId OR card_2 = @cardId OR card_3 = @cardId OR card_4 = @cardId);", connection))
-                {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    command.Parameters.AddWithValue("@cardId", cardId);
-
-                    int count = Convert.ToInt32(await command.ExecuteScalarAsync());
-                    return count > 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error checking if card is in deck: {ex.Message}");
-                return false;
-            }
-        }
-
     }
-
 }

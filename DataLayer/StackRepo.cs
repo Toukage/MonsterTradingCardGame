@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MonsterTradingCardGame.BusinessLayer;
+﻿using MonsterTradingCardGame.BusinessLayer;
+using Npgsql;
 
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class StackManager
+    internal class StackRepo
     {
-        private readonly Response _response = new();
 
+        //----------------------GET--DATA----------------------
         public async Task<int?>  GetStackIdForUser(User user)//gets stackId from UserId
         {
             try
@@ -46,6 +42,59 @@ namespace MonsterTradingCardGame.DataLayer
             }
         }
 
+        public async Task<List<string>> GetCardIdsFromStack(User user)//get all card IDs for a user from the Stacks table
+        {
+            Console.WriteLine("** Fetching card IDs from user's stack **");
+            List<string> cardIds = new List<string>();
+
+            try
+            {
+                await using (var connection = await Database.Database.Connection())
+                await using (var command = new NpgsqlCommand("SELECT card_id FROM StackCards WHERE stack_id = (SELECT stack_id FROM Stacks WHERE user_id = @userId);", connection))//join in db 
+                {
+                    command.Parameters.AddWithValue("@userId", user.UserId);
+                    await using (var reader = await command.ExecuteReaderAsync())
+                    {
+                        while (await reader.ReadAsync())
+                        {
+                            string cardId = reader.GetString(reader.GetOrdinal("card_id"));
+                            cardIds.Add(cardId);
+                        }
+                    }
+                }
+                return cardIds;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching card IDs: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task InsertCardsIntoUserStack(int userId, List<string> cardIds)//method to insert cards into the user's stack
+        {
+            try
+            {
+                await using (var connection = await Database.Database.Connection())
+                await using (var insertCommand = new NpgsqlCommand("INSERT INTO StackCards (stack_id, card_id) VALUES ((SELECT stack_id FROM Stacks WHERE user_id = @userId), @cardId);", connection))
+                {
+                    insertCommand.Parameters.Add(new NpgsqlParameter("@userId", userId));
+                    var cardIdParam = insertCommand.Parameters.Add("@cardId", NpgsqlTypes.NpgsqlDbType.Text);
+
+                    foreach (string cardId in cardIds)
+                    {
+                        cardIdParam.Value = cardId;
+                        await insertCommand.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error inserting cards into stack: {ex.Message}");
+            }
+        }
+
+        //----------------------CREATE--DATA----------------------
         public async Task<bool>  CreateStackForUser(User user)//creates stack and returns id
         {
             try
@@ -75,59 +124,8 @@ namespace MonsterTradingCardGame.DataLayer
             }
         }
 
-        public async Task<List<string>>  GetCardIdsFromStack(User user)//get all card IDs for a user from the Stacks table
-        {
-            Console.WriteLine("** Fetching card IDs from user's stack **");
-            List<string> cardIds = new List<string>();
-
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var command = new NpgsqlCommand("SELECT card_id FROM StackCards WHERE stack_id = (SELECT stack_id FROM Stacks WHERE user_id = @userId);", connection))//join in db 
-                {
-                    command.Parameters.AddWithValue("@userId", user.UserId);
-                    await using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            string cardId = reader.GetString(reader.GetOrdinal("card_id"));
-                            cardIds.Add(cardId);
-                        }
-                    }
-                }
-                return cardIds;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error fetching card IDs: {ex.Message}");
-                return null;
-            }            
-        }
-
-        public async Task InsertCardsIntoUserStack(int userId, List<string> cardIds)//method to insert cards into the user's stack
-        {
-            try
-            {
-                await using (var connection = await Database.Database.Connection())
-                await using (var insertCommand = new NpgsqlCommand("INSERT INTO StackCards (stack_id, card_id) VALUES ((SELECT stack_id FROM Stacks WHERE user_id = @userId), @cardId);", connection))
-                {
-                    insertCommand.Parameters.Add(new NpgsqlParameter("@userId", userId));
-                    var cardIdParam = insertCommand.Parameters.Add("@cardId", NpgsqlTypes.NpgsqlDbType.Text);
-
-                    foreach (string cardId in cardIds)
-                    {
-                        cardIdParam.Value = cardId;
-                        await insertCommand.ExecuteNonQueryAsync();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error inserting cards into stack: {ex.Message}");
-            }
-        }
-
-        public async Task RemoveCardFromStack(int userId, string cardId)
+        //----------------------DELETE--DATA----------------------
+        public async Task RemoveCardFromStack(int userId, string cardId)//removes card from stack
         {
             try
             {

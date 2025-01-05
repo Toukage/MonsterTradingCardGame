@@ -1,24 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Npgsql;
+using MonsterTradingCardGame.BusinessLayer;
+
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class CardManager
+    internal class CardRepo
     {
         private readonly Response _response = new();
 
         //----------------------GET--DATA----------------------
-        public async Task<List<Card>> GetCardInfoByIds(List<string> cardIds)
+        public async Task<List<Card>> GetCardInfoByIds(List<string> cardIds)//gets card information by card ids
         {
-            Console.WriteLine("** Fetching card information by card IDs **");
+            Console.WriteLine("** Fetching card information by card IDs **");//debug
             List<Card> cards = new List<Card>();
 
             if (cardIds == null || cardIds.Count == 0)
             {
-                Console.WriteLine("No card IDs provided.");
+                Console.WriteLine("No card IDs provided.");//debug
                 return cards;
             }
             try
@@ -66,7 +64,7 @@ namespace MonsterTradingCardGame.DataLayer
         }
 
         //----------------------WRITE--DATA----------------------
-        public async Task<bool> InsertCard(string cardID, string cardName, string cardType, string cardMonster, string cardElement, float cardDmg) 
+        public async Task<bool> InsertCard(string cardID, string cardName, string cardType, string cardMonster, string cardElement, float cardDmg) //inserts a card into the database
         {
             Console.WriteLine($"** inside Insert Card **");//debug
 

@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MonsterTradingCardGame.DataLayer
+﻿namespace MonsterTradingCardGame.DataLayer
 {
     internal class Response
     {
-        public async Task HttpResponse(int Statuscode, string mssg, StreamWriter writer)
+        public async Task HttpResponse(int Statuscode, string mssg, StreamWriter writer)//writes the response
         {
             string Status = GetStatus(Statuscode);
             writer.WriteLine($"HTTP/1.1 {Statuscode} {Status}.");
@@ -17,7 +11,7 @@ namespace MonsterTradingCardGame.DataLayer
             writer.WriteLine($"{mssg}");
         }
 
-        static string GetStatus(int Statuscode) 
+        static string GetStatus(int Statuscode)//all status codes
         {
             string status;
             switch (Statuscode)
@@ -52,7 +46,5 @@ namespace MonsterTradingCardGame.DataLayer
             }
             return status;
         }
-
-
     }
 }
