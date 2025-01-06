@@ -3,13 +3,16 @@
 namespace MonsterTradingCardGame.BusinessLayer
 {
     //----------------------BATTLE--QUEUE----------------------
-    internal class Queue
+    public class Queue
     {
         private static ConcurrentQueue<int> _playerQueue = new();
         private static readonly SemaphoreSlim _queueLock = new(1, 1);
         public int User1 { get; private set; }
         public int User2 { get; private set; }
-
+        public static void ClearQueue()
+        {
+            _playerQueue.Clear();
+        }
         public async Task<bool> Waitlist(int userId)//returns true if a match is found, false if not
         {
             Console.WriteLine($"User {userId} has entered the queue.");//debug

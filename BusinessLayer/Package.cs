@@ -4,7 +4,7 @@ using MonsterTradingCardGame.Routing;
 
 namespace MonsterTradingCardGame.BusinessLayer
 {
-    internal class Package
+    public class Package
     {
         private static readonly object _buyPackLock = new();
 

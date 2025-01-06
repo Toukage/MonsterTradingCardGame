@@ -4,7 +4,7 @@ using Npgsql;
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class StackRepo
+    public class StackRepo
     {
 
         //----------------------GET--DATA----------------------

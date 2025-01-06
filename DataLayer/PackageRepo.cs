@@ -2,7 +2,7 @@
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class PackageRepo
+    public class PackageRepo
     {
         private readonly Response _response = new();
         private readonly StackRepo _stackMan = new();

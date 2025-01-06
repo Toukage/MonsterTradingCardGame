@@ -27,6 +27,7 @@ namespace MonsterTradingCardGame.BusinessLayer
         private readonly ScoreRepo _scoreRepo = new();
         private readonly Card _card = new();
         private readonly BattleRepo _battleRepo = new();
+        private readonly Queue _queue = new();
         private static readonly SemaphoreSlim _battleLock = new(1, 1);
 
         private Card _lastCardPlayer1 = null;
@@ -114,6 +115,7 @@ namespace MonsterTradingCardGame.BusinessLayer
                 finally
                 {
                     _battleLock.Release();
+                    Queue.ClearQueue();
                 }
             }
             else

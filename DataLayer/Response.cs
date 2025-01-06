@@ -1,6 +1,6 @@
 ﻿namespace MonsterTradingCardGame.DataLayer
 {
-    internal class Response
+    public class Response
     {
         public async Task HttpResponse(int Statuscode, string mssg, StreamWriter writer)//writes the response
         {

@@ -4,7 +4,7 @@ using MonsterTradingCardGame.BusinessLayer;
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class CardRepo
+    public class CardRepo
     {
         private readonly Response _response = new();
 

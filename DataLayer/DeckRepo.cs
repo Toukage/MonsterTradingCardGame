@@ -3,7 +3,7 @@ using Npgsql;
 
 namespace MonsterTradingCardGame.DataLayer
 {
-    internal class DeckRepo
+    public class DeckRepo
     {
         private readonly Response _response = new();
 
