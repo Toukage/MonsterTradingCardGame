@@ -3,11 +3,17 @@ trigger:
  - release
 
 variables:
-  dockerVersion: '20.10.7'
-  buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
-  solution: '**/MonsterTradingCardGame.sln'
-  project: '**/MonsterTradingCardGame.csproj'
+- group: Secrets
+- name: dockerVersion
+  value: '20.10.7'
+- name: buildPlatform
+  value: 'Any CPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: '**/MonsterTradingCardGame.sln'
+- name: project
+  value: '**/MonsterTradingCardGame.csproj'
 
 stages:
 - stage: SetupDatabase
@@ -35,11 +41,15 @@ stages:
         docker-compose up -d
         docker-compose ps
       displayName: 'Start PostgreSQL with Docker Compose'
+      env:
+        POSTGRES_USER: $(postgres-user)
+        POSTGRES_PASSWORD: $(postgres-password)
+        POSTGRES_DB: $(postgres-db)
 
     - script: |
         echo "Waiting for PostgreSQL to become ready..."
         for i in {1..30}; do
-          docker exec MTCG_Container pg_isready -U toukage && break
+          docker exec MTCG_Container pg_isready -U $(postgres-user) && break
           sleep 1
         done
       displayName: 'Waiting for PostgreSQL'
@@ -47,7 +57,7 @@ stages:
     - publish: $(System.DefaultWorkingDirectory)
       artifact: source-code
     - script: |
-        docker-compose -f $(dockercompose) down
+        docker-compose down
       displayName: 'Clean Up Docker Compose'
 
 - stage: Build
