@@ -1,0 +1,83 @@
+trigger:
+ - master
+ - release
+
+variables:
+  dockerVersion: '20.10.7'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  solution: '**/MonsterTradingCardGame.sln'
+  project: '**/MonsterTradingCardGame.csproj'
+
+stages:
+- stage: SetupDatabase
+  displayName: 'Start and Init PostgreSQL'
+  jobs:
+  - job: StartPostgres
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+    - task: DockerInstaller@0
+      name: 'dockerinstaller'
+      displayName: 'Docker Installer'
+      inputs:
+        dockerVersion: $(dockerVersion)
+
+    - script: |
+        sudo wget -O /usr/local/bin/docker-compose "https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64"
+        sudo chmod +x /usr/local/bin/docker-compose
+        docker-compose version
+      displayName: 'Install Docker Compose v2'
+
+    - script: |
+        docker-compose up -d
+        docker-compose ps
+      displayName: 'Start PostgreSQL with Docker Compose'
+
+    - script: |
+        echo "Waiting for PostgreSQL to become ready..."
+        for i in {1..30}; do
+          docker exec MTCG_Container pg_isready -U toukage && break
+          sleep 1
+        done
+      displayName: 'Waiting for PostgreSQL'
+
+    - publish: $(System.DefaultWorkingDirectory)
+      artifact: source-code
+    - script: |
+        docker-compose -f $(dockercompose) down
+      displayName: 'Clean Up Docker Compose'
+
+- stage: Build
+  displayName: 'Build .NET Framework App'
+  dependsOn: SetupDatabase
+  jobs:
+  - job: BuildDotNet
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - download: current
+      artifact: source-code
+
+    - task: NuGetToolInstaller@1
+      name: 'Nugettoolinstaller'
+      displayName: 'Nuget tool installer'
+
+    - task: NuGetCommand@2
+      name: 'Nugetrestore'
+      displayName: 'Nuget restore packages'
+      inputs:
+        command: 'restore'
+        restoreSolution: '$(solution)'
+        feedsToUse: 'select'
+    
+    - task: VSBuild@1
+      name: 'SolutionBuild'
+      displayName: 'Building Solution'
+      inputs:
+        solution: '$(solution)'
+        msbuildArgs: '/p:DeployOnBuild=true'
+        platform: '$(buildPlatform)'
+        configuration: '$(buildConfiguration)'
