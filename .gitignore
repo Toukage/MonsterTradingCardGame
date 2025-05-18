@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+# Allow Unit Test Project to be tracked
+!MonsterTradingCardGame.nUnitTest/
+!MonsterTradingCardGame.nUnitTest/**/*.cs
+!MonsterTradingCardGame.nUnitTest/*.csproj
