@@ -11,6 +11,7 @@ namespace MonsterTradingCardGame.BusinessLayer
         private readonly UserRepo _userMan = new();
 
         //user data
+        //this is a test to see if azure pipeline is updateing!!!
         public int UserId { get; set; }
         public string UserName { get; set; }
         public string Password { get; set; } 
