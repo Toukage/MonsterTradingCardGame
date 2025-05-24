@@ -1,0 +1,52 @@
+trigger: none
+pr: none
+
+resources:
+  pipelines:
+    - pipeline: buildPipeline
+      source: Toukage.MonsterTradingCardGame # <- Die Source ist unsere Build Pipeline
+      trigger:
+        branches:
+          include:
+            - master
+
+variables:
+- group: Secrets
+
+stages:
+- stage: BuildAndPushDocker
+  displayName: 'BuildPushDockerImage'
+  jobs:
+  - job: DockerBuildPush
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - download: current
+      artifact: source-code
+
+    - task: DockerInstaller@0
+      inputs:
+        dockerVersion: '20.10.7'
+
+    - task: Docker@2
+      inputs:
+        command: buildAndPush
+        repository: vee227/DevSecMTCG # <- Name, wie es auf Docker Hub gespeichert wird
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          latest
+        containerRegistry: devsec-connection # <- Name unserer Service Connection
+
+- stage: DeployToAzure
+  dependsOn: BuildAndPushDocker
+  displayName: 'DeploytoAzure'
+  jobs:
+  - job: DeployToApp
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: AzureWebAppContainer@1
+      inputs:
+        azureSubscription: 'Release-Azure-Connection' # <- Name unserer Service Connection
+        appName: 'Deployment-DevSec' # <- Name unserer Azure Web App
+        containers: 'docker.io/vee227/DevSecMTCG:latest' # <- vollständige URL unseres Images auf Docker Hub
