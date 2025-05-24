@@ -21,7 +21,7 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     steps:
-    - download: current
+    - download: buildPipeline
       artifact: source-code
 
     - task: DockerInstaller@0
