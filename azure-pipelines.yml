@@ -52,6 +52,8 @@ stages:
                 sleep 1
               done
             displayName: Waiting for PostgreSQL
+          - publish: $(System.DefaultWorkingDirectory)
+            artifact: source-code
           - script: |
               docker-compose down
             displayName: Clean Up Docker Compose
@@ -63,6 +65,8 @@ stages:
         pool:
           vmImage: windows-latest
         steps:
+          - download: current
+            artifact: source-code
           - task: NuGetToolInstaller@1
             name: Nugettoolinstaller
             displayName: Nuget tool installer
@@ -81,5 +85,3 @@ stages:
               msbuildArgs: /p:DeployOnBuild=true
               platform: $(buildPlatform)
               configuration: $(buildConfiguration)
-          - publish: $(System.DefaultWorkingDirectory)
-            artifact: source-code
