@@ -15,7 +15,7 @@ namespace MTCG
         static async Task Main(string[] args)//async main so that the async server start works
         {
             IPAddress address = IPAddress.Any;//allows server to listen to all avaible IPAddresses
-            int port = 10001;//port that the server will use
+            int port = 80;//port that the server will use
             var router = new Router(null);
             var parser = new Parser(router);
             router = new Router(parser);
