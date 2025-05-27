@@ -2,7 +2,7 @@
 
 namespace MonsterTradingCardGame.BusinessLayer
 {
-//Comment for Test local push
+//Comment for test local push
     public class Battle
     {
         public int Player { get; set; }
