@@ -9,12 +9,26 @@ namespace MonsterTradingCardGame.Database
 {
     public class Database
     {
-        private static readonly string connectionString = "Host=localhost;Port=5432;Username=toukage;Password=mtcgserver;Database=MTCG_DB";
+        private static readonly string connectionString = BuildConnectionString();
+
+        private static string BuildConnectionString()
+        {
+            var host = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
+            var port = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
+            var user = Environment.GetEnvironmentVariable("POSTGRES_USER");
+            var password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD");
+            var database = Environment.GetEnvironmentVariable("POSTGRES_DB");
+
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(password) || string.IsNullOrEmpty(database))
+                throw new InvalidOperationException("Database environment variables are missing.");
+
+            return $"Host={host};Port={port};Username={user};Password={password};Database={database}";
+        }
 
         public static async Task<NpgsqlConnection> Connection()
         {
-            NpgsqlConnection connection = new NpgsqlConnection(connectionString);//erstellt eine verbindung zur datenbank aus den infos von connectionString
-            await connection.OpenAsync(); //opend die connection zur datenbank
+            var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync();
             return connection;
         }
     }

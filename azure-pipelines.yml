@@ -85,3 +85,9 @@ stages:
               msbuildArgs: /p:DeployOnBuild=true
               platform: $(buildPlatform)
               configuration: $(buildConfiguration)
+            env:
+              POSTGRES_USER: $(postgres-user)
+              POSTGRES_PASSWORD: $(postgres-password)
+              POSTGRES_DB: $(postgres-db)
+              POSTGRES_HOST: localhost
+              POSTGRES_PORT: 5432
