@@ -2,6 +2,7 @@
 trigger:
   - master
   - release
+  - secretmanagementtests
 variables:
   - group: Secrets
   - name: dockerVersion
