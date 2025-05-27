@@ -31,7 +31,7 @@ stages:
     - task: Docker@2
       inputs:
         command: buildAndPush
-        repository: $(dockerhub-name)/DevSecMTCG # <- Name, wie es auf Docker Hub gespeichert wird
+        repository: $(dockerhub-name)/devsecmtcg # <- Name, wie es auf Docker Hub gespeichert wird
         Dockerfile: '**/Dockerfile'
         tags: |
           latest
@@ -49,4 +49,4 @@ stages:
       inputs:
         azureSubscription: 'Release-Azure-Connection' # <- Name unserer Service Connection
         appName: 'Deployment-DevSec' # <- Name unserer Azure Web App
-        containers: 'docker.io/$(dockerhub-name)/DevSecMTCG:latest' # <- vollständige URL unseres Images auf Docker Hub
+        containers: 'docker.io/$(dockerhub-name)/devsecmtcg:latest' # <- vollständige URL unseres Images auf Docker Hub
